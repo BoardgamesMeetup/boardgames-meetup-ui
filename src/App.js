@@ -1,24 +1,34 @@
-import logo from './logo.svg';
-import './App.css';
+// App.js
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import PrivateRoute from './components/PrivateRoute';
+import Login from './components/Login';
+import Callback from './components/Callback';
+import Home from './components/Home';
+import userManager from './authConfig';
 
 function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+
+    userManager.getUser().then((user) => {
+      setUser(user);
+    });
+  }, []);
+  const isAuthenticated = !!user;
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/callback" element={<Callback />} />
+        {/* Protected routes */}
+        <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
+          <Route path="/" element={<Home user={user} />} />
+        </Route>
+      </Routes>
+    </Router>
   );
 }
 
