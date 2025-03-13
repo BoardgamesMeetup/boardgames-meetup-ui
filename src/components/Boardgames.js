@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Card, CardContent, CardMedia } from '@mui/material';
+import { getSession } from "../cognito";
 
 function Boardgames() {
   const [boardgameId, setBoardgameId] = useState('');
@@ -11,7 +12,15 @@ function Boardgames() {
     setBoardgame(null);
 
     try {
-      const response = await fetch(`http://localhost:9025/boardgames/external-object/${boardgameId}`);
+      const session = await getSession();
+      const token = session.getAccessToken().getJwtToken();
+      console.log("TOKEN: " + token);
+      console.log(`BOARDGAME ID: ${boardgameId} `);
+      const response = await fetch(`http://localhost:9013/boardgames/external-object/${boardgameId}`,{
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         console.log("response: " + response)
         throw new Error(`Failed to fetch boardgame with ID=${boardgameId}`);

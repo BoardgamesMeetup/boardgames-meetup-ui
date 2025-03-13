@@ -8,6 +8,8 @@ import ForgotPassword from './components/ForgotPassword';
 import UserProfile from './components/UserProfile';
 import Events from './components/Events';
 import Boardgames from './components/Boardgames';
+import ConfirmationPage from './components/ConfirmationPage';
+
 
 function App() {
   return (
@@ -34,6 +36,7 @@ function App() {
         <Route path="/user-profile" element={<UserProfile />} />
         <Route path="/events" element={<Events />} />
         <Route path="/boardgames" element={<Boardgames />} />
+        <Route path="/confirm" element={<ConfirmationPage />} />
       </Routes>
     </Router>
   );

@@ -1,156 +1,199 @@
 import React, { useState } from 'react';
 import {
   registerUser,
-  confirmRegistration,
-  loginUser,
-  getIdToken
 } from '../cognito';
+
 import {
-  Box,
   TextField,
   Button,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
+  MenuItem,
   Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Box,
+  CircularProgress
 } from '@mui/material';
+import axios from 'axios';
+import {
+  CognitoUserAttribute
+} from 'amazon-cognito-identity-js';
+
+
+const roles = [
+  { value: 'PLAYER', label: 'Player' },
+  { value: 'EVENT_PLANNER', label: 'Event Planner' },
+  { value: 'ADMIN', label: 'Admin' }
+];
 
 function Register() {
-  const [stage, setStage] = useState('REGISTER'); // REGISTER -> CONFIRM -> (auto login) -> PROFILE
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('Player');
-  const [confirmationCode, setConfirmationCode] = useState('');
-
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [modalMessage, setModalMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
 
+  const [formData, setFormData] = useState({
+    email: '',
+    givenName: '',
+    familyName: '',
+    role: 'PLAYER',
+    password: '',
+    confirmPassword: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+
   const handleRegister = async (e) => {
+    setErrorMsg('');
+    setSuccessMsg('');
     e.preventDefault();
     try {
-      await registerUser(username, password, email);
+      if (formData.password !== formData.confirmPassword) {
+        setMessage('Passwords do not match!');
+        return;
+      }
+  
+      setLoading(true);
+  
+      const attributeList = [
+        new CognitoUserAttribute({ Name: 'email', Value: formData.email }),
+        new CognitoUserAttribute({ Name: 'given_name', Value: formData.givenName }),
+        new CognitoUserAttribute({ Name: 'family_name', Value: formData.familyName }),
+        new CognitoUserAttribute({ Name: 'profile', Value: formData.role })
+      ];
+      var result;
+      try {
+       result = await registerUser(formData, attributeList);
+      console.log('Register success:', result);
+      } catch (err) {
+        console.error('Register error:', err);
+        switch (err.code) {
+          case 'UsernameExistsException':
+            setErrorMsg('That username already exists. Please choose a different one.');
+            break;
+          case 'InvalidPasswordException':
+            setErrorMsg('Password must meet the required complexity rules.');
+            break;
+          case 'InvalidParameterException':
+            setErrorMsg('Invalid parameter. Please check all required fields.');
+            break;
+          default:
+            setErrorMsg(err.message || 'An unexpected error occurred. Please try again.');
+        }
+      }    
+      try {
+        const { userSub } = result;
+        console.log("Call user-service for registration: ", userSub);
+
+        const res = await axios.post('http://localhost:9011/user-service/register', {
+          userId: userSub,
+          email: formData.email,
+          givenName: formData.givenName,
+          familyName: formData.familyName,
+          role: formData.role
+        });
+        console.log("Register result: ", res);
+        console.log(res.data.message || 'Registration successful! Check your email for confirmation.');
+      } catch (dbErr) {
+        console.error('Backend error saving user in DB:', dbErr);
+        console.log(dbErr.response?.data?.message || 'Error saving user to backend');
+      } finally {
+        console.log(false);
+      }
       setModalMessage('Registration successful! Check email for code.');
       setShowModal(true);
-      setStage('CONFIRM');
+      setLoading(false);
     } catch (err) {
+      setLoading(false);
       setModalMessage(err.message || JSON.stringify(err));
       setShowModal(true);
     }
   };
 
-  const handleConfirm = async (e) => {
-    e.preventDefault();
-    try {
-      await confirmRegistration(username, confirmationCode);
-      setModalMessage('User confirmed! Now logging you in...');
-      setShowModal(true);
-      setStage('DONE');
+return (
+  <Box
+    sx={{
+      width: 400,
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 2,
+      mt: 5
+    }}
+  >
+  
+    <Typography variant="h5" align="center">
+      Register
+    </Typography>
+    {message && <Typography color="primary">{message}</Typography>}
+    {errorMsg && <div style={{ color: 'red' }}>{errorMsg}</div>}
+      {successMsg && <div style={{ color: 'green' }}>{successMsg}</div>}
 
-      // Optionally auto-login after confirmation
-      const session = await loginUser(username, password);
-      console.log('Logged in, ID Token =', session.getIdToken().getJwtToken());
+    <TextField
+      label="Email"
+      name="email"
+      type="email"
+      value={formData.email}
+      onChange={handleChange}
+      required
+    />
+    <TextField
+      label="Given Name"
+      name="givenName"
+      value={formData.givenName}
+      onChange={handleChange}
+      required
+    />
+    <TextField
+      label="Family Name"
+      name="familyName"
+      value={formData.familyName}
+      onChange={handleChange}
+      required
+    />
+    <TextField
+      select
+      label="Role"
+      name="role"
+      value={formData.role}
+      onChange={handleChange}
+    >
+      {roles.map((option) => (
+        <MenuItem key={option.value} value={option.value}>
+          {option.label}
+        </MenuItem>
+      ))}
+    </TextField>
+    <TextField
+      label="Password"
+      name="password"
+      type="password"
+      value={formData.password}
+      onChange={handleChange}
+      required
+    />
+    <TextField
+      label="Confirm Password"
+      name="confirmPassword"
+      type="password"
+      value={formData.confirmPassword}
+      onChange={handleChange}
+      required
+    />
 
-      // Now we can call the gateway to store the user profile
-      await saveProfile();
-
-    } catch (err) {
-      setModalMessage(err.message || JSON.stringify(err));
-      setShowModal(true);
-    }
-  };
-
-  /**
-   * Saves the user profile (including role) in your user-management service (via gateway).
-   */
-  const saveProfile = async () => {
-    try {
-      const token = await getIdToken();
-      const response = await fetch('http://localhost:8080/profile', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          role: role
-        })
-      });
-      if (!response.ok) {
-        throw new Error('Failed to save profile');
-      }
-    } catch (err) {
-      console.error('Error saving profile:', err);
-    }
-  };
-
-  return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>Register</Typography>
-      
-      {stage === 'REGISTER' && (
-        <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} onSubmit={handleRegister}>
-          <TextField
-            label="Username"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            required
-          />
-          <TextField
-            label="Email"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-          />
-          <TextField
-            label="Password"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-          />
-          <Typography>Select Role:</Typography>
-          <RadioGroup row value={role} onChange={e => setRole(e.target.value)}>
-            <FormControlLabel value="Player" control={<Radio />} label="Player" />
-            <FormControlLabel value="Event Planner" control={<Radio />} label="Event Planner" />
-          </RadioGroup>
-          <Button variant="contained" type="submit">Register</Button>
-        </Box>
-      )}
-
-      {stage === 'CONFIRM' && (
-        <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} onSubmit={handleConfirm}>
-          <TextField
-            label="Confirmation Code"
-            value={confirmationCode}
-            onChange={e => setConfirmationCode(e.target.value)}
-            required
-          />
-          <Button variant="contained" type="submit">Confirm</Button>
-        </Box>
-      )}
-
-      {stage === 'DONE' && (
-        <Typography variant="body1">Registration complete! You can go to <a href="/login">login</a> or Home.</Typography>
-      )}
-
-      {/* Modal for messages */}
-      <Dialog open={showModal} onClose={() => setShowModal(false)}>
-        <DialogTitle>Notification</DialogTitle>
-        <DialogContent>
-          <Typography>{modalMessage}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowModal(false)}>OK</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
+    <Button
+      variant="contained"
+      onClick={handleRegister}
+      disabled={loading}
+    >
+      {loading ? <CircularProgress size={24} /> : 'Register'}
+    </Button>
+  </Box>
+);
 }
-
 export default Register;
