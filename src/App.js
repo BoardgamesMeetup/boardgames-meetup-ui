@@ -9,6 +9,7 @@ import UserProfile from './components/UserProfile';
 import Events from './components/Events';
 import Boardgames from './components/Boardgames';
 import ConfirmationPage from './components/ConfirmationPage';
+import BoardgameProfile from './components/BoardgameProfile';
 
 
 function App() {
@@ -24,19 +25,21 @@ function App() {
           <Button color="inherit" component={Link} to="/login">Login</Button>
           <Button color="inherit" component={Link} to="/events">Events</Button>
           <Button color="inherit" component={Link} to="/boardgames">Boardgames</Button>
+          <Button color="inherit" component={Link} to="/user-profile">User Profile</Button>
     
         </Toolbar>
       </AppBar>
 
       <Routes>
-        <Route exact path="/" element={<Home />} />
+        {/* <Route exact path="/" element={<Home />} /> */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/user-profile" element={<UserProfile />} />
         <Route path="/events" element={<Events />} />
-        <Route path="/boardgames" element={<Boardgames />} />
+        <Route path="/" element={<Boardgames />} />
         <Route path="/confirm" element={<ConfirmationPage />} />
+        <Route path="/boardgame/:id" element={<BoardgameProfile />} />
       </Routes>
     </Router>
   );
