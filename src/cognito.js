@@ -27,9 +27,8 @@ export function registerUser(formData, attributeList) {
           console.error('Cognito register error: ', err)
           reject(err);
         } else {
-        
           resolve(result);
-      }
+        }
       }
     );
   });
@@ -49,6 +48,25 @@ export function confirmRegistration(username, confirmationCode) {
   });
 }
 
+export function resendConfirmationCode(username) {
+  const userData = {
+    Username: username,
+    Pool: userPool
+  };
+  
+  const cognitoUser = new CognitoUser(userData);
+  
+  return new Promise((resolve, reject) => {
+    cognitoUser.resendConfirmationCode((err, result) => {
+      if (err) {
+        console.error('Error resending confirmation code:', err);
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}
 
 export function loginUser(username, password) {
   const authDetails = new AuthenticationDetails({ Username: username, Password: password });
@@ -58,6 +76,7 @@ export function loginUser(username, password) {
     cognitoUser.authenticateUser(authDetails, {
       onSuccess: session => {
         resolve(session);
+        
       },
       onFailure: err => {
         reject(err);
@@ -89,6 +108,23 @@ export function getSession() {
   });
 }
 
+export function getSessionIfExists() {
+  const currentUser = userPool.getCurrentUser();
+  if (!currentUser) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    currentUser.getSession((err, session) => {
+      if (err || !session?.isValid()) {
+        resolve(null);
+      } else {
+        resolve(session);
+      }
+    });
+  });
+}
+
 export function logoutUser() {
   const currentUser = userPool.getCurrentUser();
   if (currentUser) {
@@ -97,8 +133,13 @@ export function logoutUser() {
 }
 
 export async function getIdToken() {
-  const session = await getSession();
-  return session.getIdToken().getJwtToken();
+  try {
+    const session = await getSession();
+    return session.getIdToken().getJwtToken();
+  } catch (error) {
+    console.log('No valid session for token retrieval');
+    return null;
+  }
 }
 
 export function forgotPassword(username) {
@@ -134,6 +175,60 @@ export function changePassword(oldPassword, newPassword) {
       currentUser.changePassword(oldPassword, newPassword, (changeErr, result) => {
         if (changeErr) reject(changeErr);
         else resolve(result);
+      });
+    });
+  });
+}
+
+export function updateEmail(newEmail) {
+  const currentUser = userPool.getCurrentUser();
+  if (!currentUser) {
+    return Promise.reject(new Error('No current user to update email for.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    currentUser.getSession((err, session) => {
+      if (err || !session?.isValid()) {
+        return reject(err || new Error('Session is invalid'));
+      }
+
+      const attributes = [
+        {
+          Name: 'email',
+          Value: newEmail
+        }
+      ];
+
+      currentUser.updateAttributes(attributes, (updateErr, result) => {
+        if (updateErr) {
+          reject(updateErr);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  });
+}
+
+
+export function deleteUser() {
+  const currentUser = userPool.getCurrentUser();
+  if (!currentUser) {
+    return Promise.reject(new Error('No current user to delete.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    currentUser.getSession((err, session) => {
+      if (err || !session?.isValid()) {
+        return reject(err || new Error('Session is invalid'));
+      }
+
+      currentUser.deleteUser((deleteErr, result) => {
+        if (deleteErr) {
+          reject(deleteErr);
+        } else {
+          resolve(result);
+        }
       });
     });
   });

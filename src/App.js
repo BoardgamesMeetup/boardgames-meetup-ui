@@ -1,47 +1,110 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
+import React, { useState } from 'react';
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Box,
+  IconButton,
+  Menu,
+  MenuItem,
+  TextField,
+  Avatar,
+  Button,
+  Divider
+} from '@mui/material';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import NavBar from './components/NavBar';
 import Home from './components/Home';
 import Register from './components/Register';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import UserProfile from './components/UserProfile';
 import Events from './components/Events';
+import EventsCreation from './components/EventsCreation';
 import Boardgames from './components/Boardgames';
 import ConfirmationPage from './components/ConfirmationPage';
 import BoardgameProfile from './components/BoardgameProfile';
+import EventBoardgames from './components/EventBoardgames';
+import ProtectedRoute from './components/ProtectedRoute';
+import { getSession, logoutUser } from "./cognito";
+import { jwtDecode } from 'jwt-decode';
+import EventDetails from './components/EventDetails';
+import { getSessionIfExists } from './cognito';
+import EventUpdate from './components/EventUpdate';
+import  ResendConfirmation from './components/ResendConfirmation';
 
 
 function App() {
-  return (
-    <Router>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Boardgames Meetup
-          </Typography>
-          <Button color="inherit" component={Link} to="/">Home</Button>
-          <Button color="inherit" component={Link} to="/register">Register</Button>
-          <Button color="inherit" component={Link} to="/login">Login</Button>
-          <Button color="inherit" component={Link} to="/events">Events</Button>
-          <Button color="inherit" component={Link} to="/boardgames">Boardgames</Button>
-          <Button color="inherit" component={Link} to="/user-profile">User Profile</Button>
-    
-        </Toolbar>
-      </AppBar>
+  const [user, setUser] = React.useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const fetchSession = async () => {
+    return await getSessionIfExists();
+  };
+
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const session = await fetchSession();
+        if (session) {
+          setAuthenticated(true);
+          const token = session.getAccessToken().getJwtToken();
+          if (token) {
+            try {
+              const decoded = jwtDecode(token);
+              console.log('TOKEN: ', decoded);
+              const role = decoded['cognito:groups']?.[0] || 'player';
+              setUser({ isLoggedIn: true, role });
+            } catch (e) {
+              setUser(null);
+              console.warn('Invalid token');
+            }
+          }
+        } else { setAuthenticated(true) }
+      } catch (error) {
+        console.log('Error checking authentication:', error);
+        setAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = () => {
+    logoutUser();
+    setUser(null);
+  }
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      <NavBar user={user} onLogout={handleLogout} />
       <Routes>
-        {/* <Route exact path="/" element={<Home />} /> */}
         <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/user-profile" element={<UserProfile />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/" element={<Boardgames />} />
+        <Route path="/login" element={<Login setUser={setUser} />} />
         <Route path="/confirm" element={<ConfirmationPage />} />
-        <Route path="/boardgame/:id" element={<BoardgameProfile />} />
+        <Route path="/resend-confirmation" element={< ResendConfirmation />} /> 
+        <Route element={<ProtectedRoute/>}>
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+
+
+
+            <Route exact path="/home" element={<Home />} />
+            <Route path="/user-profile" element={<UserProfile />} />
+            <Route path="/events/search" element={<Events />} />
+            <Route path="/events/create" element={ <EventsCreation />}/>
+            <Route path="/events/:eventId/select-boardgames" element={<EventBoardgames />} />
+            <Route path="/events/:eventId" element={<EventDetails />} />
+            <Route path="events/edit/:eventId" element={<EventUpdate />} />
+            <Route path="/boardgames" element={<Boardgames />} />
+
+            <Route path="/boardgame/:id" element={<BoardgameProfile />} />
+
+
+        </Route>
       </Routes>
-    </Router>
+    </Box>
   );
 }
 

@@ -206,14 +206,14 @@ function Boardgames() {
             size="small"
           />
           <Button variant="contained" onClick={() => handleFetchBoardgame(1)}>
-            Fetch / Search
+            Search
           </Button>
           <Button variant="outlined" color="secondary" onClick={handleClear}>
             Clear
           </Button>
         </Box>
 
-        {!boardgameId && (
+        {(
           <Box
             sx={{
               display: "grid",
@@ -423,7 +423,7 @@ function Boardgames() {
 
       {!boardgame && boardgames.length === 0 && !error && (
         <Typography variant="body1">
-          Enter a Boardgame ID or use filters and click &quot;Fetch / Search&quot;.
+          Enter a Boardgame ID or use filters and click &quot;Search&quot;.
         </Typography>
       )}
     </Box>

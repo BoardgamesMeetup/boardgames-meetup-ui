@@ -1,74 +1,183 @@
-import React, { useState } from 'react';
-import { loginUser } from '../cognito';
-import { Link } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
-  Box,
   TextField,
   Button,
   Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Box,
+  CircularProgress,
+  InputAdornment,
+  IconButton,
+  Alert,
+  Link
 } from '@mui/material';
+import {
+  Visibility,
+  VisibilityOff
+} from '@mui/icons-material';
+import { loginUser } from '../cognito';
 
 function Login() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [modalMessage, setModalMessage] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const location = useLocation();
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  const navigate = useNavigate();
+  useEffect(() => {
+    if (location.state?.sessionExpired) {
+      setSessionExpired(true);
+    }
+  }, [location]);
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
+    setSessionExpired(false);
+    setLoading(true);
+    
     try {
-      const session = await loginUser(username, password);
-      setModalMessage(`Login successful! ID Token: ${session.getIdToken().getJwtToken()}`);
-      setShowModal(true);
-//      navigate('/');
+      const session = await loginUser(formData.email, formData.password);
+      console.log('Login successful', session);
+      window.location.href = '/home';
     } catch (err) {
-      setModalMessage(err.message || JSON.stringify(err));
-      setShowModal(true);
+      console.error('Login error:', err);
+      
+      if (err.code === 'UserNotConfirmedException') {
+        setError('Please confirm your email before logging in.');
+      } else if (err.code === 'NotAuthorizedException') {
+        setError('Incorrect email or password.');
+      } else if (err.code === 'UserNotFoundException') {
+        setError('No account found with this email.');
+      } else {
+        setError(err.message || 'An error occurred during login.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
+  const goToResendConfirmation = () => {
+    if (formData.email) {
+      window.location.href = `/resend-confirmation?email=${encodeURIComponent(formData.email)}`;
+    } else {
+      window.location.href = '/resend-confirmation';
+    }
+  };
+
+
+
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>Login</Typography>
-      <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} onSubmit={handleLogin}>
-        <TextField
-          label="Username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
-          required
-        />
-        <TextField
-          label="Password"
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-        />
-        <Button variant="contained" type="submit">Login</Button>
-        <Box>
-          <Link to="/forgot-password">Forgot your password?</Link>
-        </Box>
+    <Box
+      sx={{
+        width: 400,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        mt: 5
+      }}
+    >
+      <Typography variant="h5" align="center">
+        Login
+      </Typography>
+      
+      {sessionExpired && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Your session has expired. Please log in again.
+        </Alert>
+      )}
+      
+      {error && (
+        <Typography color="error" align="center">
+          {error}
+        </Typography>
+      )}
+
+      <TextField
+        label="Email"
+        name="email"
+        type="email"
+        value={formData.email}
+        onChange={handleChange}
+        required
+      />
+      
+      <TextField
+        label="Password"
+        name="password"
+        type={showPassword ? "text" : "password"}
+        value={formData.password}
+        onChange={handleChange}
+        required
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="toggle password visibility"
+                onClick={handleTogglePasswordVisibility}
+                edge="end"
+              >
+                {showPassword ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
+
+      <Button
+        variant="contained"
+        onClick={handleLogin}
+        disabled={loading}
+      >
+        {loading ? <CircularProgress size={24} /> : 'Login'}
+      </Button>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+        <Button
+          variant="text"
+          size="small"
+          onClick={() => window.location.href = '/register'}
+        >
+          Create Account
+        </Button>
+        
+        <Button
+          variant="text"
+          size="small"
+          onClick={() => window.location.href = '/forgot-password'}
+        >
+          Forgot Password?
+        </Button>
       </Box>
 
-      <Dialog open={showModal} onClose={() => setShowModal(false)}>
-        <DialogTitle>Notification</DialogTitle>
-        <DialogContent>
-          <Typography>{modalMessage}</Typography>
-        </DialogContent>
-        <DialogActions>
-      <Button onClick={() => {
-        setShowModal(false);
-        navigate('/');
-        }}>OK</Button>
-      </DialogActions>
-      </Dialog>
+      <Typography variant="body2" align="center" sx={{ mt: 2 }}>
+        Need to confirm your account?{' '}
+        <Link
+          component="button"
+          variant="body2"
+          onClick={goToResendConfirmation}
+          sx={{ cursor: 'pointer' }}
+        >
+          Resend confirmation email
+        </Link>
+      </Typography>
+
     </Box>
   );
 }
