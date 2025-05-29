@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  CardMedia,
   Grid,
   MenuItem,
   Select,
@@ -15,10 +14,21 @@ import {
   OutlinedInput,
   Checkbox,
   ListItemText,
-  IconButton
+  IconButton,
+  Paper,
+  Divider,
+  CircularProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Alert
 } from '@mui/material';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { getSession } from "../cognito";
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import InfoIcon from '@mui/icons-material/Info';
 
 const mechanicsOptions = [
   "Deck Building",
@@ -40,38 +50,111 @@ const domainOptions = [
 
 function Boardgames() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
 
   const [boardgameId, setBoardgameId] = useState(searchParams.get("boardgameId") || "");
-
+  const [boardgameName, setBoardgameName] = useState(searchParams.get("boardgameName") || "");
   const [minPlayers, setMinPlayers] = useState(searchParams.get("minPlayers") || "");
   const [maxPlayers, setMaxPlayers] = useState(searchParams.get("maxPlayers") || "");
+  const [yearPublished, setYearPublished] = useState(searchParams.get("yearPublished") || "");
+  
   const [minAge, setMinAge] = useState(searchParams.get("minAge") || "");
   const [maxPlaytime, setMaxPlaytime] = useState(searchParams.get("maxPlaytime") || "");
   const [minComplexity, setMinComplexity] = useState(searchParams.get("minComplexity") || "");
   const [maxComplexity, setMaxComplexity] = useState(searchParams.get("maxComplexity") || "");
   const [selectedMechanics, setSelectedMechanics] = useState(
-    searchParams.get("mechanics") ? searchParams.get("mechanics").split(",") : []
+    searchParams.get("mechanics") ? searchParams.get("mechanics").split(",").filter(m => m !== "") : []
   );
   const [selectedDomains, setSelectedDomains] = useState(
-    searchParams.get("domains") ? searchParams.get("domains").split(",") : []
+    searchParams.get("domains") ? searchParams.get("domains").split(",").filter(d => d !== "") : []
   );
-  const [yearPublished, setYearPublished] = useState(searchParams.get("yearPublished") || "");
+
+  const [expandedFilters, setExpandedFilters] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [stateRestored, setStateRestored] = useState(false);
 
   const defaultPageNumber = parseInt(searchParams.get("page") || "1", 10);
   const [pageNumber, setPageNumber] = useState(defaultPageNumber);
-
   const defaultPageSize = parseInt(searchParams.get("size") || "5", 10);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [totalPages, setTotalPages] = useState(1);
 
   const [boardgame, setBoardgame] = useState(null);
-
   const [boardgames, setBoardgames] = useState([]);
-
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const restoreStateFromLocalStorage = () => {
+      try {
+        const savedFilters = JSON.parse(localStorage.getItem('boardgameSearchFilters'));
+        if (savedFilters) {
+          if (savedFilters.boardgameId) setBoardgameId(savedFilters.boardgameId);
+          if (savedFilters.boardgameName) setBoardgameName(savedFilters.boardgameName);
+          if (savedFilters.minPlayers) setMinPlayers(savedFilters.minPlayers);
+          if (savedFilters.maxPlayers) setMaxPlayers(savedFilters.maxPlayers);
+          if (savedFilters.yearPublished) setYearPublished(savedFilters.yearPublished);
+          
+          if (savedFilters.minAge) setMinAge(savedFilters.minAge);
+          if (savedFilters.maxPlaytime) setMaxPlaytime(savedFilters.maxPlaytime);
+          if (savedFilters.minComplexity) setMinComplexity(savedFilters.minComplexity);
+          if (savedFilters.maxComplexity) setMaxComplexity(savedFilters.maxComplexity);
+          
+          if (savedFilters.mechanics && Array.isArray(savedFilters.mechanics)) {
+            setSelectedMechanics(savedFilters.mechanics);
+          }
+          if (savedFilters.domains && Array.isArray(savedFilters.domains)) {
+            setSelectedDomains(savedFilters.domains);
+          }
+        }
+        
+        const savedPageNumber = localStorage.getItem('boardgamePageNumber');
+        const savedPageSize = localStorage.getItem('boardgamePageSize');
+        
+        if (savedPageNumber) setPageNumber(parseInt(savedPageNumber, 10));
+        if (savedPageSize) setPageSize(parseInt(savedPageSize, 10));
+        
+        const savedResults = JSON.parse(localStorage.getItem('boardgameSearchResults'));
+        const savedTotalPages = localStorage.getItem('boardgameTotalPages');
+        
+        if (savedResults && savedResults.length > 0) {
+          setBoardgames(savedResults);
+          setHasSearched(true);
+          
+          if (savedTotalPages) {
+            setTotalPages(parseInt(savedTotalPages, 10));
+          }
+          
+          setStateRestored(true);
+          console.log('Restored search state from localStorage');
+        }
+      } catch (error) {
+        console.error('Error restoring state from localStorage:', error);
+      }
+    };
+    
+    restoreStateFromLocalStorage();
+  }, []);
+
+  useEffect(() => {
+    const performInitialSearch = async () => {
+      if (stateRestored) return;
+      
+      if (Object.keys(searchParams).length > 0) {
+        handleFetchBoardgame(pageNumber);
+      }
+    };
+    
+    performInitialSearch();
+  }, [stateRestored]);
+
+  const handleToggleFilters = () => {
+    setExpandedFilters(!expandedFilters);
+  };
 
   const handleFetchBoardgame = async (overridePage = 1) => {
     setError("");
+    setIsLoading(true);
     setBoardgame(null);
     setBoardgames([]);
 
@@ -81,6 +164,7 @@ function Boardgames() {
 
       const newParams = {
         boardgameId,
+        boardgameName,
         minPlayers,
         maxPlayers,
         minAge,
@@ -93,12 +177,33 @@ function Boardgames() {
         page: overridePage.toString(),
         size: pageSize.toString(),
       };
+      
       Object.keys(newParams).forEach((key) => {
         if (!newParams[key]) delete newParams[key];
       });
+      
       setSearchParams(newParams);
 
+      const filtersToSave = {
+        boardgameId,
+        boardgameName,
+        minPlayers,
+        maxPlayers,
+        minAge,
+        maxPlaytime,
+        minComplexity,
+        maxComplexity,
+        mechanics: selectedMechanics,
+        domains: selectedDomains,
+        yearPublished
+      };
+      
+      localStorage.setItem('boardgameSearchFilters', JSON.stringify(filtersToSave));
+      localStorage.setItem('boardgamePageNumber', overridePage.toString());
+      localStorage.setItem('boardgamePageSize', pageSize.toString());
+
       if (boardgameId.trim()) {
+        // Search for specific boardgame by ID
         const response = await fetch(
           `http://localhost:9013/boardgames/external-object/${boardgameId}`,
           {
@@ -112,6 +217,7 @@ function Boardgames() {
         setBoardgame(data);
       } else {
         const filters = {
+          name: boardgameName || null,
           minPlayers: minPlayers ? Number(minPlayers) : null,
           maxPlayers: maxPlayers ? Number(maxPlayers) : null,
           minAge: minAge ? Number(minAge) : null,
@@ -122,6 +228,9 @@ function Boardgames() {
           domains: selectedDomains.length ? selectedDomains : null,
           yearPublished: yearPublished ? Number(yearPublished) : null,
         };
+
+        console.log("Searching with filters:", filters);
+        console.log("Page:", overridePage, "Size:", pageSize);
 
         const url = `http://localhost:9013/boardgames/search?page=${overridePage}&size=${pageSize}`;
         const response = await fetch(url, {
@@ -138,11 +247,20 @@ function Boardgames() {
         }
 
         const data = await response.json();
-        setBoardgames(data.content || []);
+        const resultContent = data.content || [];
+        
+        setBoardgames(resultContent);
         setTotalPages(data.totalPages || 1);
+        setHasSearched(true);
+        
+        localStorage.setItem('boardgameSearchResults', JSON.stringify(resultContent));
+        localStorage.setItem('boardgameTotalPages', (data.totalPages || 1).toString());
       }
     } catch (err) {
+      console.error("Search error:", err);
       setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -153,6 +271,7 @@ function Boardgames() {
       handleFetchBoardgame(newPage);
     }
   };
+  
   const handlePrevPage = () => {
     if (pageNumber > 1) {
       const newPage = pageNumber - 1;
@@ -163,6 +282,7 @@ function Boardgames() {
 
   const handleClear = () => {
     setBoardgameId("");
+    setBoardgameName("");
     setMinPlayers("");
     setMaxPlayers("");
     setMinAge("");
@@ -177,254 +297,405 @@ function Boardgames() {
     setBoardgame(null);
     setBoardgames([]);
     setTotalPages(1);
+    setHasSearched(false);
+
+    localStorage.removeItem('boardgameSearchFilters');
+    localStorage.removeItem('boardgameSearchResults');
+    localStorage.removeItem('boardgamePageNumber');
+    localStorage.removeItem('boardgamePageSize');
+    localStorage.removeItem('boardgameTotalPages');
 
     setSearchParams({});
   };
 
   const handlePageSizeChange = (e) => {
-    setPageSize(e.target.value);
+    const newSize = parseInt(e.target.value, 10);
+    setPageSize(newSize);
     setPageNumber(1);
+    handleFetchBoardgame(1);
   };
 
-  useEffect(() => {
-    handleFetchBoardgame(pageNumber);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const getQueryParams = () => {
+    const params = new URLSearchParams();
+    params.append("page", pageNumber.toString());
+    params.append("size", pageSize.toString());
+    if (boardgameName) params.append("boardgameName", boardgameName);
+    if (minPlayers) params.append("minPlayers", minPlayers);
+    if (maxPlayers) params.append("maxPlayers", maxPlayers);
+    if (minAge) params.append("minAge", minAge);
+    if (maxPlaytime) params.append("maxPlaytime", maxPlaytime);
+    if (minComplexity) params.append("minComplexity", minComplexity);
+    if (maxComplexity) params.append("maxComplexity", maxComplexity);
+    if (selectedMechanics.length) params.append("mechanics", selectedMechanics.join(","));
+    if (selectedDomains.length) params.append("domains", selectedDomains.join(","));
+    if (yearPublished) params.append("yearPublished", yearPublished);
+    return params.toString();
+  };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
         Boardgames
       </Typography>
 
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <TextField
-            label="Boardgame ID"
-            value={boardgameId}
-            onChange={(e) => setBoardgameId(e.target.value)}
-            size="small"
-          />
-          <Button variant="contained" onClick={() => handleFetchBoardgame(1)}>
-            Search
-          </Button>
-          <Button variant="outlined" color="secondary" onClick={handleClear}>
-            Clear
-          </Button>
-        </Box>
+      <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
+        <Typography variant="h5" mb={3} fontWeight="medium">Search Boardgames</Typography>
 
-        {(
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, 1fr)",
-                md: "repeat(3, 1fr)",
-              },
-              gap: 2,
-            }}
-          >
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="Boardgame Name"
+              fullWidth
+              size="small"
+              value={boardgameName}
+              onChange={(e) => setBoardgameName(e.target.value)}
+              InputProps={{
+                startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="Boardgame ID"
+              fullWidth
+              size="small"
+              value={boardgameId}
+              onChange={(e) => setBoardgameId(e.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
             <TextField
               label="Min Players"
               type="number"
+              fullWidth
               size="small"
               value={minPlayers}
               onChange={(e) => setMinPlayers(e.target.value)}
             />
+          </Grid>
+          <Grid item xs={12} md={4}>
             <TextField
               label="Max Players"
               type="number"
+              fullWidth
               size="small"
               value={maxPlayers}
               onChange={(e) => setMaxPlayers(e.target.value)}
             />
-            <TextField
-              label="Min Age"
-              type="number"
-              size="small"
-              value={minAge}
-              onChange={(e) => setMinAge(e.target.value)}
-            />
-            <TextField
-              label="Max Playtime"
-              type="number"
-              size="small"
-              value={maxPlaytime}
-              onChange={(e) => setMaxPlaytime(e.target.value)}
-            />
-            <TextField
-              label="Min Complexity"
-              type="number"
-              size="small"
-              inputProps={{ step: "0.1" }}
-              value={minComplexity}
-              onChange={(e) => setMinComplexity(e.target.value)}
-            />
-            <TextField
-              label="Max Complexity"
-              type="number"
-              size="small"
-              inputProps={{ step: "0.1" }}
-              value={maxComplexity}
-              onChange={(e) => setMaxComplexity(e.target.value)}
-            />
-            <FormControl size="small">
-              <InputLabel id="mechanics-label">Mechanics</InputLabel>
-              <Select
-                labelId="mechanics-label"
-                label="Mechanics"
-                multiple
-                value={selectedMechanics}
-                onChange={(e) => setSelectedMechanics(e.target.value)}
-                input={<OutlinedInput label="Mechanics" />}
-                renderValue={(selected) => selected.join(", ")}
-              >
-                {mechanicsOptions.map((mechanic) => (
-                  <MenuItem key={mechanic} value={mechanic}>
-                    <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
-                    <ListItemText primary={mechanic} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl size="small">
-              <InputLabel id="domains-label">Domains</InputLabel>
-              <Select
-                labelId="domains-label"
-                label="Domains"
-                multiple
-                value={selectedDomains}
-                onChange={(e) => setSelectedDomains(e.target.value)}
-                input={<OutlinedInput label="Domains" />}
-                renderValue={(selected) => selected.join(", ")}
-              >
-                {domainOptions.map((domain) => (
-                  <MenuItem key={domain} value={domain}>
-                    <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
-                    <ListItemText primary={domain} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
+          </Grid>
+          <Grid item xs={12} md={4}>
             <TextField
               label="Year Published"
               type="number"
+              fullWidth
               size="small"
               value={yearPublished}
               onChange={(e) => setYearPublished(e.target.value)}
             />
+          </Grid>
+        </Grid>
 
-            <FormControl size="small">
-              <InputLabel id="page-size-label">Page Size</InputLabel>
-              <Select
-                labelId="page-size-label"
-                label="Page Size"
-                value={pageSize}
-                onChange={handlePageSizeChange}
-              >
-                <MenuItem value={5}>5</MenuItem>
-                <MenuItem value={10}>10</MenuItem>
-                <MenuItem value={15}>15</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
+        <Accordion 
+          expanded={expandedFilters} 
+          onChange={handleToggleFilters}
+          sx={{ 
+            mb: 3, 
+            boxShadow: 'none', 
+            '&:before': { display: 'none' },
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 1
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.03)',
+              borderRadius: expandedFilters ? '4px 4px 0 0' : 1
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FilterListIcon sx={{ mr: 1 }} />
+              <Typography>Advanced Filters</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Min Age"
+                  type="number"
+                  fullWidth
+                  size="small"
+                  value={minAge}
+                  onChange={(e) => setMinAge(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Max Playtime"
+                  type="number"
+                  fullWidth
+                  size="small"
+                  value={maxPlaytime}
+                  onChange={(e) => setMaxPlaytime(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Min Complexity"
+                  type="number"
+                  fullWidth
+                  size="small"
+                  inputProps={{ step: "0.1" }}
+                  value={minComplexity}
+                  onChange={(e) => setMinComplexity(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Max Complexity"
+                  type="number"
+                  fullWidth
+                  size="small"
+                  inputProps={{ step: "0.1" }}
+                  value={maxComplexity}
+                  onChange={(e) => setMaxComplexity(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" mb={1}>Mechanics</Typography>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="mechanics-label">Mechanics</InputLabel>
+                  <Select
+                    labelId="mechanics-label"
+                    label="Mechanics"
+                    multiple
+                    value={selectedMechanics}
+                    onChange={(e) => setSelectedMechanics(e.target.value)}
+                    input={<OutlinedInput label="Mechanics" />}
+                    renderValue={(selected) => selected.join(", ")}
+                    sx={{ minWidth: 200 }}
+                  >
+                    {mechanicsOptions.map((mechanic) => (
+                      <MenuItem key={mechanic} value={mechanic}>
+                        <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
+                        <ListItemText primary={mechanic} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" mb={1}>Domains</Typography>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="domains-label">Domains</InputLabel>
+                  <Select
+                    labelId="domains-label"
+                    label="Domains"
+                    multiple
+                    value={selectedDomains}
+                    onChange={(e) => setSelectedDomains(e.target.value)}
+                    input={<OutlinedInput label="Domains" />}
+                    renderValue={(selected) => selected.join(", ")}
+                    sx={{ minWidth: 200 }}
+                  >
+                    {domainOptions.map((domain) => (
+                      <MenuItem key={domain} value={domain}>
+                        <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
+                        <ListItemText primary={domain} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Search Actions */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
+          <Button 
+            variant="contained" 
+            onClick={() => handleFetchBoardgame(1)} 
+            disabled={isLoading}
+            startIcon={<SearchIcon />}
+          >
+            {isLoading ? <CircularProgress size={24} color="inherit" /> : "Search"}
+          </Button>
+          <Button 
+            variant="outlined" 
+            onClick={handleClear} 
+            disabled={isLoading}
+          >
+            Clear All
+          </Button>
+          <Box sx={{ flexGrow: 1 }}></Box>
+          <Typography mr={1}>Page Size:</Typography>
+          <FormControl sx={{ minWidth: 120 }}>
+            <Select
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              disabled={isLoading}
+              sx={{ height: 36 }}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={15}>15</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
         )}
-      </Box>
-
-      {error && (
-        <Typography color="error" sx={{ mb: 2 }}>
-          {error}
-        </Typography>
-      )}
+      </Paper>
 
       {boardgame && (
-        <Card sx={{ maxWidth: 600, mb: 3 }}>
-          {boardgame.image && (
-            <CardMedia
-              component="img"
-              height="250"
-              image={boardgame.image}
-              alt={boardgame.name || "Boardgame Image"}
-            />
-          )}
-          <CardContent>
-            <Typography variant="h5" gutterBottom>
-              {boardgame.names && boardgame.names.length
-                ? boardgame.names[0].value
-                : boardgame.name || "Unnamed"}
-            </Typography>
-            <Typography variant="body1" color="textSecondary">
-              Year: {boardgame.yearpublished}
-            </Typography>
-            <Typography variant="body1" color="textSecondary">
-              Players: {boardgame.minplayers} - {boardgame.maxplayers}
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 1, whiteSpace: "pre-line" }}>
-              {boardgame.description || ""}
-            </Typography>
-          </CardContent>
-        </Card>
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
+          <Typography variant="h5" mb={3} fontWeight="medium">Boardgame Details</Typography>
+          
+          <Card sx={{ display: 'flex', mb: 2 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              width: '100%' 
+            }}>
+              <CardContent sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', md: 'row' },
+                gap: 2,
+                width: '100%'
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  width: { xs: '100%', md: '70%' } 
+                }}>
+                  <Typography variant="h6" component="div">
+                    {boardgame.names && boardgame.names.length
+                      ? boardgame.names[0].value
+                      : boardgame.name || "Unnamed"}
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'flex-end',
+                  gap: 3,
+                  width: { xs: '100%', md: '30%' } 
+                }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Year: {boardgame.yearpublished}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Players: {boardgame.minplayers} - {boardgame.maxplayers}
+                  </Typography>
+                </Box>
+              </CardContent>
+              <Divider />
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
+                  {boardgame.description ? boardgame.description.substring(0, 300) + (boardgame.description.length > 300 ? '...' : '') : "No description available."}
+                </Typography>
+              </Box>
+            </Box>
+          </Card>
+        </Paper>
       )}
 
       {boardgames.length > 0 && (
-        <>
-          <Grid container spacing={2}>
-            {boardgames.map((bg) => (
-              <Grid item xs={12} sm={6} md={4} key={bg.gameId}>
-                <Card>
-                  {bg.image && (
-                    <CardMedia
-                      component="img"
-                      height="200"
-                      image={bg.image}
-                      alt={bg.name || "Boardgame Image"}
-                    />
-                  )}
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      {bg.name}
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
+          <Typography variant="h5" mb={3} fontWeight="medium">Search Results</Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {boardgames.map((boardgame) => (
+              <Card key={boardgame.gameId} sx={{ width: '100%' }}>
+                <Box sx={{ display: 'flex', width: '100%' }}>
+                  <CardContent sx={{ 
+                    py: 2, 
+                    px: 3,
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%',
+                    justifyContent: 'space-between'
+                  }}>
+                    <Typography variant="subtitle1" sx={{ 
+                      width: '50%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {boardgame.name}
                     </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Year: {bg.yearPublished}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Players: {bg.minPlayers} - {bg.maxPlayers}
-                    </Typography>
-                    <Box sx={{ textAlign: "right" }}>
-                      <IconButton
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'flex-end', 
+                      gap: 3, 
+                      width: '50%',
+                      minWidth: 'fit-content'
+                    }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+                        Year: {boardgame.yearPublished}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+                        Players: {boardgame.minPlayers} - {boardgame.maxPlayers}
+                      </Typography>
+                      <Button
                         component={Link}
-                        to={`/boardgame/${bg.gameId}?page=${pageNumber}&size=${pageSize}&minPlayers=${minPlayers}&maxPlayers=${maxPlayers}&minAge=${minAge}&maxPlaytime=${maxPlaytime}&minComplexity=${minComplexity}&maxComplexity=${maxComplexity}&mechanics=${selectedMechanics.join(",")}&domains=${selectedDomains.join(",")}&yearPublished=${yearPublished}`}
+                        to={`/boardgame/${boardgame.gameId}?${getQueryParams()}`}
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        startIcon={<InfoIcon />}
+                        sx={{ flexShrink: 0 }}
                       >
-                        <span role="img" aria-label="info">ℹ️</span>
-                      </IconButton>
+                        View Details
+                      </Button>
                     </Box>
                   </CardContent>
-                </Card>
-              </Grid>
+                </Box>
+              </Card>
             ))}
-          </Grid>
-
-          <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-            <Button variant="outlined" onClick={handlePrevPage} disabled={pageNumber <= 1}>
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, gap: 2 }}>
+            <Button 
+              variant="outlined" 
+              onClick={handlePrevPage} 
+              disabled={pageNumber <= 1 || isLoading}
+            >
               Previous
             </Button>
-            <Typography variant="body1">
-              Page {pageNumber} / {totalPages}
+            <Typography>
+              Page {pageNumber} of {totalPages}
             </Typography>
-            <Button variant="outlined" onClick={handleNextPage} disabled={pageNumber >= totalPages}>
+            <Button 
+              variant="outlined" 
+              onClick={handleNextPage} 
+              disabled={pageNumber >= totalPages || isLoading}
+            >
               Next
             </Button>
           </Box>
-        </>
+        </Paper>
       )}
 
-      {!boardgame && boardgames.length === 0 && !error && (
-        <Typography variant="body1">
-          Enter a Boardgame ID or use filters and click &quot;Search&quot;.
-        </Typography>
+      {!boardgame && boardgames.length === 0 && !error && !isLoading && !hasSearched && (
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            Enter search criteria and click "Search" to find boardgames.
+          </Typography>
+        </Paper>
+      )}
+
+      {isLoading && !error && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+          <Typography variant="h6" ml={2}>Searching boardgames...</Typography>
+        </Box>
       )}
     </Box>
   );

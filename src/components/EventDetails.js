@@ -68,6 +68,8 @@ const EventDetails = () => {
   const [boardgames, setBoardgames] = useState([]);
   const [boardgamesLoading, setBoardgamesLoading] = useState(false);
   const [isEventPlanner, setIsEventPlanner] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState(null);
+  const [ownerLoading, setOwnerLoading] = useState(false);
   const { eventId } = useParams();
   const navigate = useNavigate();
 
@@ -104,6 +106,10 @@ const EventDetails = () => {
         const eventData = response.data;
         setEvent(eventData);
         
+        if (eventData.owner) {
+          fetchOwnerProfile(eventData.owner, token);
+        }
+        
         if (eventData.participantsIds.includes(username)) {
           setIsAttending(true);
         }
@@ -122,6 +128,25 @@ const EventDetails = () => {
 
     fetchUserProfileAndEventDetails();
   }, [eventId]);
+
+  const fetchOwnerProfile = async (ownerId, token) => {
+    try {
+      setOwnerLoading(true);
+      const response = await axios.get(`http://localhost:9013/user-service/profile/${ownerId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (response.status === 200) {
+        setOwnerProfile(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching owner profile:', err);
+    } finally {
+      setOwnerLoading(false);
+    }
+  };
 
   const fetchBoardgameDetails = async (token) => {
     try {
@@ -278,29 +303,29 @@ const EventDetails = () => {
   const formattedDate = format(eventDate, 'MMMM d, yyyy');
   const dayOfWeek = format(eventDate, 'EEEE');
   
-const createGoogleCalendarUrl = () => {
-  const startDateTime = `${event.day}T${event.startHour}:00`;
-  const endDateTime = `${event.day}T${event.endHour}:00`;
-  
-  const locationParts = [
-    event.address, 
-    event.city
-  ].filter(part => part && part.trim() !== '');
-  
-  const location = locationParts.join(', ');
-  
-  const eventDetails = {
-    action: 'TEMPLATE',
-    text: `${event.title} - ${event.city}`,
-    details: event.description,
-    location: location,
-    dates: `${startDateTime}/${endDateTime}`.replace(/-/g, '').replace(/:/g, '')
+  const createGoogleCalendarUrl = () => {
+    const startDateTime = `${event.day}T${event.startHour}:00`;
+    const endDateTime = `${event.day}T${event.endHour}:00`;
+    
+    const locationParts = [
+      event.address, 
+      event.city
+    ].filter(part => part && part.trim() !== '');
+    
+    const location = locationParts.join(', ');
+    
+    const eventDetails = {
+      action: 'TEMPLATE',
+      text: `${event.title} - ${event.city}`,
+      details: event.description,
+      location: location,
+      dates: `${startDateTime}/${endDateTime}`.replace(/-/g, '').replace(/:/g, '')
+    };
+    
+    const baseUrl = 'https://calendar.google.com/calendar/render';
+    const params = new URLSearchParams(eventDetails);
+    return `${baseUrl}?${params.toString()}`;
   };
-  
-  const baseUrl = 'https://calendar.google.com/calendar/render';
-  const params = new URLSearchParams(eventDetails);
-  return `${baseUrl}?${params.toString()}`;
-};
   
   const createGoogleMapsUrl = () => {
     if (event.latitude && event.longitude) {
@@ -316,9 +341,25 @@ const createGoogleCalendarUrl = () => {
   const maxSteps = hasBoardgames ? boardgames.length : 0;
   const isOwner = event.owner === userId;
 
+  const organizerDisplay = ownerLoading ? (
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <CircularProgress size={20} sx={{ mr: 1 }} />
+      <Typography variant="body1" color="text.secondary">
+        Loading organizer info...
+      </Typography>
+    </Box>
+  ) : ownerProfile && ownerProfile.name ? (
+    <Typography variant="body1" color="text.secondary">
+      Organized by: {ownerProfile.name}
+    </Typography>
+  ) : (
+    <Typography variant="body1" color="text.secondary">
+      Organized by: {event.owner}
+    </Typography>
+  );
+
   return (
     <ThemeProvider theme={theme}>
-      {/* <SessionCheck /> */}
       <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', pb: 8 }}>
         <Container maxWidth="lg" sx={{ pt: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, ml: -1 }}>
@@ -342,9 +383,7 @@ const createGoogleCalendarUrl = () => {
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
             <PersonIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
-            <Typography variant="body1" color="text.secondary">
-              Organized by: {event.owner}
-            </Typography>
+            {organizerDisplay}
           </Box>
           
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 4 }}>
@@ -534,7 +573,7 @@ const createGoogleCalendarUrl = () => {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <RoomIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">Venue</Typography>
+                    <Typography variant="h6">{event.venueName}</Typography>
                   </Box>
                   
                   <Divider sx={{ mb: 2 }} />
