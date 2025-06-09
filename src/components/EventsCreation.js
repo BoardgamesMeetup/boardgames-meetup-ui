@@ -33,7 +33,6 @@ export default function EventsCreation() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Google Maps loading
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
     libraries: libraries,

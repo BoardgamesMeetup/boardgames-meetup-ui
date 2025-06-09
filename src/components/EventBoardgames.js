@@ -409,7 +409,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Min Players"
-                type="number"
                 fullWidth
                 size="small"
                 value={minPlayers}
@@ -419,7 +418,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Max Players"
-                type="number"
                 fullWidth
                 size="small"
                 value={maxPlayers}
@@ -429,7 +427,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Min Age"
-                type="number"
                 fullWidth
                 size="small"
                 value={minAge}
@@ -439,7 +436,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Max Playtime"
-                type="number"
                 fullWidth
                 size="small"
                 value={maxPlaytime}
@@ -449,7 +445,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Min Complexity"
-                type="number"
                 fullWidth
                 size="small"
                 inputProps={{ step: "0.1" }}
@@ -460,7 +455,6 @@ export default function EventBoardgames() {
             <Grid item xs={12} md={4}>
               <TextField
                 label="Max Complexity"
-                type="number"
                 fullWidth
                 size="small"
                 inputProps={{ step: "0.1" }}
@@ -469,51 +463,52 @@ export default function EventBoardgames() {
               />
             </Grid>
             <Grid item xs={12} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="mechanics-label">Mechanics</InputLabel>
-                <Select
-                  labelId="mechanics-label"
-                  label="Mechanics"
-                  multiple
-                  value={selectedMechanics}
-                  onChange={(e) => setSelectedMechanics(e.target.value)}
-                  input={<OutlinedInput label="Mechanics" />}
-                  renderValue={(selected) => selected.join(", ")}
-                >
-                  {mechanicsOptions.map((mechanic) => (
-                    <MenuItem key={mechanic} value={mechanic}>
-                      <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
-                      <ListItemText primary={mechanic} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="domains-label">Domains</InputLabel>
-                <Select
-                  labelId="domains-label"
-                  label="Domains"
-                  multiple
-                  value={selectedDomains}
-                  onChange={(e) => setSelectedDomains(e.target.value)}
-                  input={<OutlinedInput label="Domains" />}
-                  renderValue={(selected) => selected.join(", ")}
-                >
-                  {domainOptions.map((domain) => (
-                    <MenuItem key={domain} value={domain}>
-                      <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
-                      <ListItemText primary={domain} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="mechanics-label">Mechanics</InputLabel>
+                  <Select
+                    labelId="mechanics-label"
+                    label="Mechanics"
+                    multiple
+                    value={selectedMechanics}
+                    onChange={(e) => setSelectedMechanics(e.target.value)}
+                    input={<OutlinedInput label="Mechanics" />}
+                    renderValue={(selected) => selected.join(", ")}
+                    sx={{ minWidth: 210 }}
+                  >
+                    {mechanicsOptions.map((mechanic) => (
+                      <MenuItem key={mechanic} value={mechanic}>
+                        <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
+                        <ListItemText primary={mechanic} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="domains-label">Domains</InputLabel>
+                  <Select
+                    labelId="domains-label"
+                    label="Domains"
+                    multiple
+                    value={selectedDomains}
+                    onChange={(e) => setSelectedDomains(e.target.value)}
+                    input={<OutlinedInput label="Domains" />}
+                    renderValue={(selected) => selected.join(", ")}
+                    sx={{ minWidth: 210 }}
+                  >
+                    {domainOptions.map((domain) => (
+                      <MenuItem key={domain} value={domain}>
+                        <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
+                        <ListItemText primary={domain} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
             <Grid item xs={12} md={4}>
               <TextField
                 label="Year Published"
-                type="number"
                 fullWidth
                 size="small"
                 value={yearPublished}

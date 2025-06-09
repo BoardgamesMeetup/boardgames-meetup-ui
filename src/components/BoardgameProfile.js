@@ -36,6 +36,7 @@ function BoardgameProfile() {
         const session = await getSession();
         const token = session.getAccessToken().getJwtToken();
 
+        // Fetching boardgame external data
         const response = await fetch(
           `http://localhost:9013/boardgames/external-object/${id}`,
           {
@@ -49,16 +50,18 @@ function BoardgameProfile() {
         setExternalData(data);
 
         const favCheckResponse = await fetch(
-          `http://localhost:9013/user-service/favorite/boardgames/check/${id}`,
+          `http://localhost:9013/boardgames/${id}/favorites/status`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
         if (!favCheckResponse.ok) {
-          throw new Error("Failed to check favorites");
+          console.warn("Failed to check favorite status - assuming not favorite");
+          setIsFavorite(false);
+        } else {
+          const favCheckData = await favCheckResponse.json();
+          setIsFavorite(favCheckData.isFavorite === true);
         }
-        const favCheckData = await favCheckResponse.json();
-        setIsFavorite(favCheckData.favorite === true);
 
       } catch (err) {
         setError(err.message);
@@ -69,6 +72,14 @@ function BoardgameProfile() {
     fetchData();
   }, [id]);
 
+  const handleFavoriteClick = async () => {
+    if (isFavorite) {
+      await handleRemoveFavorite();
+    } else {
+      await handleAddFavorite();
+    }
+  };
+
   const handleAddFavorite = async () => {
     setFavoriteLoading(true);
     try {
@@ -76,18 +87,32 @@ function BoardgameProfile() {
       const token = session.getAccessToken().getJwtToken();
 
       const response = await fetch(
-        `http://localhost:9013/user-service/favorite/boardgames/add/${id}`,
+        `http://localhost:9013/boardgames/${id}/favorites`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
         }
       );
+      
       if (!response.ok) {
         throw new Error("Failed to add to favorites");
       }
-      setIsFavorite(true);
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        setIsFavorite(true);
+        console.log("Boardgame added to favorites successfully");
+      } else {
+        throw new Error(result.message || "Failed to add to favorites");
+      }
+      
     } catch (err) {
-      console.error(err);
+      console.error("Error adding to favorites:", err);
+      setError("Failed to add to favorites. Please try again.");
+      setTimeout(() => setError(""), 3000);
     } finally {
       setFavoriteLoading(false);
     }
@@ -100,18 +125,32 @@ function BoardgameProfile() {
       const token = session.getAccessToken().getJwtToken();
 
       const response = await fetch(
-        `http://localhost:9013/user-service/favorite/boardgames/remove/${id}`,
+        `http://localhost:9013/boardgames/${id}/favorites`,
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
         }
       );
+      
       if (!response.ok) {
         throw new Error("Failed to remove from favorites");
       }
-      setIsFavorite(false);
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        setIsFavorite(false);
+        console.log("Boardgame removed from favorites successfully");
+      } else {
+        throw new Error(result.message || "Failed to remove from favorites");
+      }
+      
     } catch (err) {
-      console.error(err);
+      console.error("Error removing from favorites:", err);
+      setError("Failed to remove from favorites. Please try again.");
+      setTimeout(() => setError(""), 3000);
     } finally {
       setFavoriteLoading(false);
     }
@@ -190,6 +229,13 @@ function BoardgameProfile() {
         </Button>
       </Box>
 
+      {/* Show error message if there's a temporary error */}
+      {error && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
+          <Typography color="error">{error}</Typography>
+        </Box>
+      )}
+
       <Card sx={{ maxWidth: 1200, mx: 'auto', mb: 4, boxShadow: 3 }}>
         <Box sx={{ 
           display: 'flex', 
@@ -225,7 +271,7 @@ function BoardgameProfile() {
               </Typography>
               <Tooltip title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
                 <IconButton 
-                  onClick={isFavorite ? handleRemoveFavorite : handleAddFavorite}
+                  onClick={handleFavoriteClick}
                   disabled={favoriteLoading}
                   sx={{ width: 40, height: 40 }}
                 >
@@ -247,9 +293,11 @@ function BoardgameProfile() {
               <Typography variant="body1">
                 <strong>Players:</strong> {externalData.minPlayers} - {externalData.maxPlayers}
               </Typography>
+              {externalData.playingtime && (
               <Typography variant="body1">
                 <strong>Playing Time:</strong> {externalData.playingtime} min
               </Typography>
+              )}
             </Box>
             
             <Typography variant="h6" mb={1}>Description</Typography>

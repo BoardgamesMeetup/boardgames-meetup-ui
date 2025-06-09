@@ -582,8 +582,8 @@ function Home() {
                   control={<Radio sx={{ p: 0.5 }} />}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <AutoAwesomeIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'primary.main' }} />
-                      <Typography fontSize="0.95rem">AI Recommendations</Typography>
+                      {/* <AutoAwesomeIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'primary.main' }} /> */}
+                      <Typography fontSize="0.95rem">Event Recommendations</Typography>
                     </Box>
                   }
                   sx={{ margin: 0, height: '36px' }}
@@ -717,7 +717,6 @@ function Home() {
               >
                 {filterOption === 'allMyEvents' ? (
                   (() => {
-                    // Group events by date
                     const groupedEvents = events.reduce((acc, event) => {
                       if (!acc[event.day]) {
                         acc[event.day] = [];
@@ -726,10 +725,8 @@ function Home() {
                       return acc;
                     }, {});
 
-                    // Convert to array and sort by date
                     const sortedDates = Object.keys(groupedEvents).sort();
 
-                    // Split into past and future events
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
 

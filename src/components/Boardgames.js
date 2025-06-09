@@ -83,6 +83,9 @@ function Boardgames() {
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [totalPages, setTotalPages] = useState(1);
 
+  const [suggestionPageNumber, setSuggestionPageNumber] = useState(1);
+  const [suggestionTotalPages, setSuggestionTotalPages] = useState(1);
+
   const [boardgame, setBoardgame] = useState(null);
   const [boardgames, setBoardgames] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -171,7 +174,7 @@ function Boardgames() {
     };
   };
 
-  const handleFetchSuggestions = async () => {
+  const handleFetchSuggestions = async (overridePage = 1) => {
     setError("");
     setIsLoadingSuggestions(true);
     setBoardgame(null);
@@ -186,23 +189,33 @@ function Boardgames() {
       const searchCriteria = buildSearchCriteria();
       
       console.log("Getting suggestions with criteria:", searchCriteria);
+      console.log("Suggestion Page:", overridePage, "Size:", pageSize);
 
-      const response = await fetch(`http://localhost:9013/boardgames/recommend`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(searchCriteria),
-      });
+      const response = await fetch(
+        `http://localhost:9013/boardgames/recommend?page=${overridePage}&size=${pageSize}`, 
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(searchCriteria),
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch suggestions");
       }
 
       const data = await response.json();
-      setSuggestions(data);
+      
+      const suggestionContent = data.content || [];
+      setSuggestions(suggestionContent);
+      setSuggestionTotalPages(data.totalPages || 1);
+      setSuggestionPageNumber(overridePage);
       setHasSearched(true);
+      
+      console.log("Received paged suggestions:", data);
       
     } catch (err) {
       console.error("Suggestions error:", err);
@@ -265,7 +278,6 @@ function Boardgames() {
       localStorage.setItem('boardgamePageSize', pageSize.toString());
 
       if (boardgameId.trim()) {
-        // Search for specific boardgame by ID
         const response = await fetch(
           `http://localhost:9013/boardgames/external-object/${boardgameId}`,
           {
@@ -331,6 +343,20 @@ function Boardgames() {
     }
   };
 
+  const handleNextSuggestionPage = () => {
+    if (suggestionPageNumber < suggestionTotalPages) {
+      const newPage = suggestionPageNumber + 1;
+      handleFetchSuggestions(newPage);
+    }
+  };
+  
+  const handlePrevSuggestionPage = () => {
+    if (suggestionPageNumber > 1) {
+      const newPage = suggestionPageNumber - 1;
+      handleFetchSuggestions(newPage);
+    }
+  };
+
   const handleClear = () => {
     setBoardgameId("");
     setBoardgameName("");
@@ -345,6 +371,8 @@ function Boardgames() {
     setYearPublished("");
     setPageNumber(1);
     setPageSize(5);
+    setSuggestionPageNumber(1);
+    setSuggestionTotalPages(1);
     setBoardgame(null);
     setBoardgames([]);
     setSuggestions([]);
@@ -365,7 +393,13 @@ function Boardgames() {
     const newSize = parseInt(e.target.value, 10);
     setPageSize(newSize);
     setPageNumber(1);
-    handleFetchBoardgame(1);
+    setSuggestionPageNumber(1);
+    
+    if (showingSuggestions) {
+      handleFetchSuggestions(1);
+    } else {
+      handleFetchBoardgame(1);
+    }
   };
 
   const getQueryParams = () => {
@@ -419,7 +453,6 @@ function Boardgames() {
           <Grid item xs={12} md={4}>
             <TextField
               label="Min Players"
-              type="number"
               fullWidth
               size="small"
               value={minPlayers}
@@ -429,7 +462,6 @@ function Boardgames() {
           <Grid item xs={12} md={4}>
             <TextField
               label="Max Players"
-              type="number"
               fullWidth
               size="small"
               value={maxPlayers}
@@ -439,7 +471,6 @@ function Boardgames() {
           <Grid item xs={12} md={4}>
             <TextField
               label="Year Published"
-              type="number"
               fullWidth
               size="small"
               value={yearPublished}
@@ -476,7 +507,6 @@ function Boardgames() {
               <Grid item xs={12} md={3}>
                 <TextField
                   label="Min Age"
-                  type="number"
                   fullWidth
                   size="small"
                   value={minAge}
@@ -486,7 +516,6 @@ function Boardgames() {
               <Grid item xs={12} md={3}>
                 <TextField
                   label="Max Playtime"
-                  type="number"
                   fullWidth
                   size="small"
                   value={maxPlaytime}
@@ -496,7 +525,6 @@ function Boardgames() {
               <Grid item xs={12} md={3}>
                 <TextField
                   label="Min Complexity"
-                  type="number"
                   fullWidth
                   size="small"
                   inputProps={{ step: "0.1" }}
@@ -507,7 +535,6 @@ function Boardgames() {
               <Grid item xs={12} md={3}>
                 <TextField
                   label="Max Complexity"
-                  type="number"
                   fullWidth
                   size="small"
                   inputProps={{ step: "0.1" }}
@@ -526,7 +553,7 @@ function Boardgames() {
                     onChange={(e) => setSelectedMechanics(e.target.value)}
                     input={<OutlinedInput label="Mechanics" />}
                     renderValue={(selected) => selected.join(", ")}
-                    sx={{ minWidth: 200 }}
+                    sx={{ minWidth: 205 }}
                   >
                     {mechanicsOptions.map((mechanic) => (
                       <MenuItem key={mechanic} value={mechanic}>
@@ -548,7 +575,7 @@ function Boardgames() {
                     onChange={(e) => setSelectedDomains(e.target.value)}
                     input={<OutlinedInput label="Domains" />}
                     renderValue={(selected) => selected.join(", ")}
-                    sx={{ minWidth: 200 }}
+                    sx={{ minWidth: 205 }}
                   >
                     {domainOptions.map((domain) => (
                       <MenuItem key={domain} value={domain}>
@@ -576,7 +603,7 @@ function Boardgames() {
           <Button 
             variant="contained" 
             color="secondary"
-            onClick={handleFetchSuggestions} 
+            onClick={() => handleFetchSuggestions(1)} 
             disabled={isLoading || isLoadingSuggestions}
             startIcon={<RecommendIcon />}
           >
@@ -668,7 +695,7 @@ function Boardgames() {
       {suggestions.length > 0 && showingSuggestions && (
         <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
           <Typography variant="h5" mb={3} fontWeight="medium">
-            Suggested Boardgames
+            Personalized Recommendations
           </Typography>
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -721,6 +748,27 @@ function Boardgames() {
                 </Box>
               </Card>
             ))}
+          </Box>
+          
+          {/* Pagination for suggestions */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, gap: 2 }}>
+            <Button 
+              variant="outlined" 
+              onClick={handlePrevSuggestionPage} 
+              disabled={suggestionPageNumber <= 1 || isLoadingSuggestions}
+            >
+              Previous
+            </Button>
+            <Typography>
+              Page {suggestionPageNumber} of {suggestionTotalPages}
+            </Typography>
+            <Button 
+              variant="outlined" 
+              onClick={handleNextSuggestionPage} 
+              disabled={suggestionPageNumber >= suggestionTotalPages || isLoadingSuggestions}
+            >
+              Next
+            </Button>
           </Box>
         </Paper>
       )}
@@ -803,10 +851,67 @@ function Boardgames() {
         </Paper>
       )}
 
+      {/* No results message for search */}
+      {boardgames.length === 0 && !showingSuggestions && !boardgame && hasSearched && !isLoading && !error && (
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" mb={2}>
+            No boardgames found
+          </Typography>
+          <Typography variant="body1" color="text.secondary" mb={3}>
+            Your search didn't return any results. Try adjusting your search criteria or removing some filters.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button 
+              variant="outlined" 
+              onClick={handleClear}
+              startIcon={<SearchIcon />}
+            >
+              Clear All Filters
+            </Button>
+            <Button 
+              variant="contained" 
+              color="secondary"
+              onClick={() => handleFetchSuggestions(1)}
+              startIcon={<RecommendIcon />}
+            >
+              Get Suggestions Instead
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
+      {/* No results message for suggestions */}
+      {suggestions.length === 0 && showingSuggestions && hasSearched && !isLoadingSuggestions && !error && (
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" mb={2}>
+            No suggestions available
+          </Typography>
+          <Typography variant="body1" color="text.secondary" mb={3}>
+            We couldn't generate personalized recommendations based on your current criteria. Try adjusting your filters or searching with different criteria.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button 
+              variant="outlined" 
+              onClick={handleClear}
+              startIcon={<SearchIcon />}
+            >
+              Clear All Filters
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={() => handleFetchBoardgame(1)}
+              startIcon={<SearchIcon />}
+            >
+              Try Regular Search
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
       {!boardgame && boardgames.length === 0 && suggestions.length === 0 && !error && !isLoading && !isLoadingSuggestions && !hasSearched && (
         <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary">
-            Enter search criteria and click "Search" to find boardgames or "Suggestions" to get recommendations.
+            Enter search criteria and click "Search" to find boardgames or "Suggestions" to get personalized recommendations.
           </Typography>
         </Paper>
       )}
@@ -815,7 +920,7 @@ function Boardgames() {
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
           <Typography variant="h6" ml={2}>
-            {isLoading ? 'Searching boardgames...' : 'Getting suggestions...'}
+            {isLoading ? 'Searching boardgames...' : 'Getting personalized suggestions...'}
           </Typography>
         </Box>
       )}

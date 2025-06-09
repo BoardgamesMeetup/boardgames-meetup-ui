@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, TextField, Button, Grid, Card, CardContent, Typography, CardActions,
   FormControl, InputLabel, Select, MenuItem, Pagination, OutlinedInput,
-  FormHelperText, Chip, Divider, Checkbox, FormControlLabel, Alert
+  FormHelperText, Chip, Divider, Checkbox, FormControlLabel, Alert, Paper,
+  Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getSession } from '../cognito';
@@ -18,6 +19,9 @@ import HomeIcon from '@mui/icons-material/Home';
 import RecommendIcon from '@mui/icons-material/Recommend';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import InfoIcon from '@mui/icons-material/Info';
 
 const Events = () => {
   const navigate = useNavigate();
@@ -69,10 +73,13 @@ const Events = () => {
   const [isShowingRecommendations, setIsShowingRecommendations] = useState(false);
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [currentSearchId, setCurrentSearchId] = useState(null);
+  const [expandedFilters, setExpandedFilters] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const cityOptions = ['Cluj', 'Bucuresti', 'Timisoara'];
-  const availabilityOptions = ['All', 'Available Seats', 'Full'];
+  const availabilityOptions = ['Available Seats', 'Full'];
   const pageSizeOptions = [5, 10, 15];
+
 
   useEffect(() => {
     const restoreStateFromLocalStorage = () => {
@@ -108,6 +115,7 @@ const Events = () => {
             isLast: savedResults.last || false
           });
           setStateRestored(true);
+          setHasSearched(true);
         }
       } catch (error) {
         console.error('Error restoring state from localStorage:', error);
@@ -197,27 +205,26 @@ const Events = () => {
     validateParticipants(filters.minParticipants, filters.maxParticipants);
   }, [filters.minParticipants, filters.maxParticipants]);
 
-
-useEffect(() => {
-  const restoreSearchContext = () => {
-    const savedSearchId = localStorage.getItem('currentSearchId');
-    const searchTimestamp = localStorage.getItem('searchTimestamp');
-    
-    if (savedSearchId && searchTimestamp) {
-      const isRecentSearch = (Date.now() - parseInt(searchTimestamp)) < 60 * 60 * 1000;
-      if (isRecentSearch) {
-        setCurrentSearchId(savedSearchId);
-        console.log('Restored searchId:', savedSearchId);
-      } else {
-        localStorage.removeItem('currentSearchId');
-        localStorage.removeItem('searchTimestamp');
-        console.log('Cleaned up old search context');
+  useEffect(() => {
+    const restoreSearchContext = () => {
+      const savedSearchId = localStorage.getItem('currentSearchId');
+      const searchTimestamp = localStorage.getItem('searchTimestamp');
+      
+      if (savedSearchId && searchTimestamp) {
+        const isRecentSearch = (Date.now() - parseInt(searchTimestamp)) < 60 * 60 * 1000;
+        if (isRecentSearch) {
+          setCurrentSearchId(savedSearchId);
+          console.log('Restored searchId:', savedSearchId);
+        } else {
+          localStorage.removeItem('currentSearchId');
+          localStorage.removeItem('searchTimestamp');
+          console.log('Cleaned up old search context');
+        }
       }
-    }
-  };
-  
-  restoreSearchContext();
-}, []);
+    };
+    
+    restoreSearchContext();
+  }, []);
 
   const validateDates = (fromDate, toDate) => {
     const today = new Date();
@@ -415,14 +422,12 @@ useEffect(() => {
       }
 
       const results = await response.json();
-       // Handle searchId from response (if your backend returns it)
     if (results.searchId) {
       setCurrentSearchId(results.searchId);
       localStorage.setItem('currentSearchId', results.searchId);
       localStorage.setItem('searchTimestamp', Date.now().toString());
       console.log('Received searchId from backend:', results.searchId);
     } else {
-      // Generate client-side searchId as fallback
       const clientSearchId = generateClientSearchId();
       setCurrentSearchId(clientSearchId);
       localStorage.setItem('currentSearchId', clientSearchId);
@@ -439,6 +444,7 @@ useEffect(() => {
         isFirst: results.first || false,
         isLast: results.last || false
       });
+      setHasSearched(true);
       
       return results;
     } catch (error) {
@@ -507,6 +513,7 @@ useEffect(() => {
       
       setPageNumber(page);
       setPageSize(size);
+      setHasSearched(true);
       
       return results;
     } catch (error) {
@@ -572,7 +579,7 @@ if (searchId && isRecentSearch && !isShowingRecommendations) {
 };
 
   const handleEditEvent = (eventId) => {
-    navigate(`/events-edit/${eventId}`);
+    navigate(`/events/edit/${eventId}`);
   };
 
   const handleCreateEvent = () => {
@@ -607,7 +614,14 @@ if (searchId && isRecentSearch && !isShowingRecommendations) {
     setPageNumber(1);
     setPageSize(10); 
     setIsShowingRecommendations(false);
-    searchEvents(clearedFilters, 1, 10);
+    setHasSearched(false);
+    setEvents([]);
+    setPaginationInfo({
+      totalItems: 0,
+      totalPages: 0,
+      isFirst: true,
+      isLast: true
+    });
   };
 
   const getTodayFormatted = () => {
@@ -642,372 +656,368 @@ if (searchId && isRecentSearch && !isShowingRecommendations) {
     });
   };
 
-  const inputStyle = {
-    '& .MuiOutlinedInput-root': {
-      '&.Mui-focused fieldset': {
-        borderColor: 'primary.main',
-        borderWidth: 2
-      },
-      '&:hover fieldset': {
-        borderColor: 'primary.light'
-      },
-      height: '56px'
-    },
-    '& .MuiInputLabel-root.Mui-focused': {
-      color: 'primary.main'
-    }
-  };
-  
-  const selectStyle = {
-    ...inputStyle, 
-    '& .MuiSelect-select': {
-      display: 'flex',
-      alignItems: 'center',
-      width: '150px',  
-      height: '24px',
-      paddingRight: '32px' 
-    },
-    minHeight: '56px'
-  };
-  
-  const containerStyle = {
-    width: '100%',
-    maxWidth: '100%',
-    mx: 'auto', 
-    px: 4,
-    boxSizing: 'border-box'
+  const handleToggleFilters = () => {
+    setExpandedFilters(!expandedFilters);
   };
   
   return (
-    <Box sx={containerStyle}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Events</Typography>
-        {isPlanner && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateEvent}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Create Event
-          </Button>
-        )}
-      </Box>
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+        Events
+      </Typography>
 
-      <Card sx={{ mb: 4, p: 2, boxShadow: 2, width: '100%' }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6" display="flex" alignItems="center">
-              <FilterAltIcon sx={{ mr: 1 }} /> Search Filters
-            </Typography>
-            <Button 
-              startIcon={<ClearIcon />} 
-              onClick={handleClearFilters}
-              size="small"
+      <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" fontWeight="medium">Search Events</Typography>
+          {isPlanner && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreateEvent}
+              sx={{ fontWeight: 'bold' }}
             >
-              Clear All
+              Create Event
             </Button>
-          </Box>
-          
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Title"
-                fullWidth
-                value={filters.title}
-                onChange={(e) => setFilters({ ...filters, title: e.target.value })}
-                sx={inputStyle}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Venue Name"
-                fullWidth
-                value={filters.venueName}
-                onChange={(e) => setFilters({ ...filters, venueName: e.target.value })}
-                sx={inputStyle}
-                InputProps={{
-                  startAdornment: <HomeIcon color="action" sx={{ mr: 1 }} />,
-                }}
-              />
-            </Grid>
+          )}
+        </Box>
 
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth sx={selectStyle}>
-                <InputLabel id="city-label">City</InputLabel>
-                <Select
-                  labelId="city-label"
-                  value={filters.city}
-                  label="City"
-                  onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                  startAdornment={<LocationOnIcon color="action" sx={{ mr: 1 }} />}
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 200
-                      },
-                    },
-                  }}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', width: '100%' }}>
-                      {selected || "All Cities"}
-                    </Box>
-                  )}
-                >
-                  <MenuItem value="">All Cities</MenuItem>
-                  {cityOptions.map(city => (
-                    <MenuItem key={city} value={city}>{city}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="Board Game"
-                fullWidth
-                value={filters.boardGame}
-                onChange={(e) => setFilters({ ...filters, boardGame: e.target.value })}
-                sx={inputStyle}
-                InputProps={{
-                  startAdornment: <SportsEsportsIcon color="action" sx={{ mr: 1 }} />,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth sx={selectStyle}>
-                <InputLabel id="availability-label">Availability</InputLabel>
-                <Select
-                  labelId="availability-label"
-                  value={filters.availability}
-                  label="Availability"
-                  onChange={(e) => setFilters({ ...filters, availability: e.target.value })}
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 200
-                      },
-                    },
-                  }}
-                >
-                  {availabilityOptions.map(option => (
-                    <MenuItem key={option} value={option}>{option}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                label="Address"
-                fullWidth
-                value={filters.address}
-                onChange={(e) => setFilters({ ...filters, address: e.target.value })}
-                sx={inputStyle}
-                InputProps={{
-                  startAdornment: <LocationSearchingIcon color="action" sx={{ mr: 1 }} />,
-                }}
-                placeholder="Search in venue address"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="From Date"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.fromDate}
-                onChange={handleFromDateChange}
-                sx={inputStyle}
-                error={!!dateErrors.fromDate}
-                helperText={dateErrors.fromDate}
-                InputProps={{
-                  startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: getTodayFormatted() }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="To Date"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.toDate}
-                onChange={handleToDateChange}
-                sx={inputStyle}
-                error={!!dateErrors.toDate}
-                helperText={dateErrors.toDate}
-                InputProps={{
-                  startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: getMinDateForToDate() }
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Min Price"
-                type="number"
-                fullWidth
-                value={filters.minPrice}
-                onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-                sx={inputStyle}
-                error={!!priceErrors.minPrice}
-                helperText={priceErrors.minPrice}
-                InputProps={{
-                  startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: 0, step: 0.01 }
-                }}
-                placeholder="0.00"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Max Price"
-                type="number"
-                fullWidth
-                value={filters.maxPrice}
-                onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-                sx={inputStyle}
-                error={!!priceErrors.maxPrice}
-                helperText={priceErrors.maxPrice}
-                InputProps={{
-                  startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: 0, step: 0.01 }
-                }}
-                placeholder="0.00"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Min Participants"
-                type="number"
-                fullWidth
-                value={filters.minParticipants}
-                onChange={(e) => setFilters({ ...filters, minParticipants: e.target.value })}
-                sx={inputStyle}
-                error={!!participantErrors.minParticipants}
-                helperText={participantErrors.minParticipants}
-                InputProps={{
-                  startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: 0, step: 1 }
-                }}
-                placeholder="0"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Max Participants"
-                type="number"
-                fullWidth
-                value={filters.maxParticipants}
-                onChange={(e) => setFilters({ ...filters, maxParticipants: e.target.value })}
-                sx={inputStyle}
-                error={!!participantErrors.maxParticipants}
-                helperText={participantErrors.maxParticipants}
-                InputProps={{
-                  startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
-                  inputProps: { min: 0, step: 1 }
-                }}
-                placeholder="0"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={8} sx={{ display: 'flex', alignItems: 'center' }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={filters.ownedOnly}
-                    onChange={(e) => setFilters({ ...filters, ownedOnly: e.target.checked })}
-                    color="primary"
-                  />
-                }
-                label={isPlanner ? "Owned" : "Registered"}
-              />
-            </Grid>
-            <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
-              <Button 
-                variant="outlined" 
-                onClick={handleSuggestionsClick}
-                startIcon={<RecommendIcon />}
-                sx={{ height: '56px', minWidth: '120px' }}
-                disabled={recommendationsLoading || !user.userId}
-              >
-                {recommendationsLoading ? 'Loading...' : 'Suggestions'}
-              </Button>
-              <Button 
-                variant="contained" 
-                onClick={handleSearchClick}
-                startIcon={<SearchIcon />}
-                sx={{ height: '56px', minWidth: '120px' }}
-                disabled={hasErrors() || loading}
-              >
-                {loading ? 'Searching...' : 'Search'}
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {isShowingRecommendations && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">
-            Showing personalized event recommendations based on your preferences
-          </Typography>
-        </Alert>
-      )}
-
-      <Box sx={{ width: '100%', position: 'relative', mb: 2 }}>
-        {(loading || recommendationsLoading) && (
-          <Box sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            backgroundColor: 'rgba(255,255,255,0.7)', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            zIndex: 2
-          }}>
-            <Typography>
-              {isShowingRecommendations ? 'Loading recommendations...' : 'Loading events...'}
-            </Typography>
-          </Box>
-        )}
-        
-        {events.length > 0 ? (
-          events.map(event => (
-            <Card 
-              key={event.id} 
-              sx={{ 
-                mb: 3, 
-                width: '100%',
-                boxShadow: 2, 
-                '&:hover': { boxShadow: 6 },
-                minHeight: '140px',
-                borderRadius: 1,
-                overflow: 'hidden',
-                ...(isShowingRecommendations && {
-                  border: '2px solid',
-                  borderColor: 'primary.light',
-                  backgroundColor: 'primary.50'
-                })
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="Title"
+              fullWidth
+              size="small"
+              value={filters.title}
+              onChange={(e) => setFilters({ ...filters, title: e.target.value })}
+              InputProps={{
+                startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
               }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="Venue Name"
+              fullWidth
+              size="small"
+              value={filters.venueName}
+              onChange={(e) => setFilters({ ...filters, venueName: e.target.value })}
+              InputProps={{
+                startAdornment: <HomeIcon color="action" sx={{ mr: 1 }} />,
+              }}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth size="small" sx={{ position: 'relative' }}>
+              <InputLabel id="city-label">City</InputLabel>
+              <Select
+                labelId="city-label"
+                value={filters.city}
+                label="City"
+                onChange={(e) => setFilters({ ...filters, city: e.target.value })}
+                sx={{
+                  '& .MuiSelect-select': {
+                    paddingLeft: '40px',
+                    minWidth: '160px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }
+                }}
+              >
+                <MenuItem value="All Cities">All Cities</MenuItem>
+                {cityOptions.map(city => (
+                  <MenuItem key={city} value={city}>{city}</MenuItem>
+                ))}
+              </Select>
+              <LocationOnIcon 
+                color="action" 
+                sx={{ 
+                  position: 'absolute', 
+                  left: 14, 
+                  top: '50%', 
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  zIndex: 1
+                }} 
+              />
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              label="Board Game"
+              fullWidth
+              size="small"
+              value={filters.boardGame}
+              onChange={(e) => setFilters({ ...filters, boardGame: e.target.value })}
+              InputProps={{
+                startAdornment: <SportsEsportsIcon color="action" sx={{ mr: 1 }} />,
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth size="small" sx={{ position: 'relative' }}>
+              <InputLabel id="availability-label">Availability</InputLabel>
+              <Select
+                labelId="availability-label"
+                value={filters.availability}
+                label="Availability"
+                onChange={(e) => setFilters({ ...filters, availability: e.target.value })}
+                sx={{
+                  '& .MuiSelect-select': {
+                    paddingLeft: '40px',
+                    minWidth: '160px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }
+                }}
+              >
+                <MenuItem value="All">All</MenuItem>
+                {availabilityOptions.map(option => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+              </Select>
+              <PeopleIcon 
+                color="action" 
+                sx={{ 
+                  position: 'absolute', 
+                  left: 14, 
+                  top: '50%', 
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  zIndex: 1
+                }} 
+              />
+            </FormControl>
+          </Grid>
+        </Grid>
+
+        <Accordion 
+          expanded={expandedFilters} 
+          onChange={handleToggleFilters}
+          sx={{ 
+            mb: 3, 
+            boxShadow: 'none', 
+            '&:before': { display: 'none' },
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 1
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.03)',
+              borderRadius: expandedFilters ? '4px 4px 0 0' : 1
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FilterListIcon sx={{ mr: 1 }} />
+              <Typography>Advanced Filters</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Address"
+                  fullWidth
+                  size="small"
+                  value={filters.address}
+                  onChange={(e) => setFilters({ ...filters, address: e.target.value })}
+                  InputProps={{
+                    startAdornment: <LocationSearchingIcon color="action" sx={{ mr: 1 }} />,
+                  }}
+                  placeholder="Search in venue address"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="From Date"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.fromDate}
+                  onChange={handleFromDateChange}
+                  error={!!dateErrors.fromDate}
+                  helperText={dateErrors.fromDate}
+                  InputProps={{
+                    startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: getTodayFormatted() }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="To Date"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.toDate}
+                  onChange={handleToDateChange}
+                  error={!!dateErrors.toDate}
+                  helperText={dateErrors.toDate}
+                  InputProps={{
+                    startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: getMinDateForToDate() }
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Min Price"
+                  fullWidth
+                  size="small"
+                  value={filters.minPrice}
+                  onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+                  error={!!priceErrors.minPrice}
+                  helperText={priceErrors.minPrice}
+                  InputProps={{
+                    startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: 0, step: 0.01 }
+                  }}
+                  placeholder="0.00"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Max Price"
+                  fullWidth
+                  size="small"
+                  value={filters.maxPrice}
+                  onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+                  error={!!priceErrors.maxPrice}
+                  helperText={priceErrors.maxPrice}
+                  InputProps={{
+                    startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: 0, step: 0.01 }
+                  }}
+                  placeholder="0.00"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Min Participants"
+                  fullWidth
+                  size="small"
+                  value={filters.minParticipants}
+                  onChange={(e) => setFilters({ ...filters, minParticipants: e.target.value })}
+                  error={!!participantErrors.minParticipants}
+                  helperText={participantErrors.minParticipants}
+                  InputProps={{
+                    startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: 0, step: 1 }
+                  }}
+                  placeholder="0"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Max Participants"
+                  fullWidth
+                  size="small"
+                  value={filters.maxParticipants}
+                  onChange={(e) => setFilters({ ...filters, maxParticipants: e.target.value })}
+                  error={!!participantErrors.maxParticipants}
+                  helperText={participantErrors.maxParticipants}
+                  InputProps={{
+                    startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
+                    inputProps: { min: 0, step: 1 }
+                  }}
+                  placeholder="0"
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.ownedOnly}
+                      onChange={(e) => setFilters({ ...filters, ownedOnly: e.target.checked })}
+                      color="primary"
+                    />
+                  }
+                  label={isPlanner ? "Owned" : "Registered"}
+                />
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Search Actions */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
+          <Button 
+            variant="contained" 
+            onClick={handleSearchClick}
+            startIcon={<SearchIcon />}
+            disabled={hasErrors() || loading}
+          >
+            {loading ? 'Searching...' : 'Search'}
+          </Button>
+          <Button 
+            variant="contained" 
+            color="secondary"
+            onClick={handleSuggestionsClick}
+            startIcon={<RecommendIcon />}
+            disabled={recommendationsLoading || !user.userId}
+          >
+            {recommendationsLoading ? 'Loading...' : 'Suggestions'}
+          </Button>
+          <Button 
+            variant="outlined" 
+            onClick={handleClearFilters}
+            startIcon={<ClearIcon />}
+          >
+            Clear All
+          </Button>
+          <Box sx={{ flexGrow: 1 }}></Box>
+          <Typography mr={1}>Page Size:</Typography>
+          <FormControl sx={{ minWidth: 120 }}>
+            <Select
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading || recommendationsLoading}
+              sx={{ height: 36 }}
             >
-              <Box sx={{ 
-                height: '8px', 
-                width: '100%',
-                backgroundColor: event.participantsIds?.length >= event.maxParticipants ? 'error.main' : 'success.main' 
-              }} />
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 8px)' }}>
-                <Box sx={{ p: 2, flex: '1 0 auto' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Box sx={{ flex: 1, pr: 2 }}>
+              {pageSizeOptions.map(option => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+
+        {(isShowingRecommendations && events.length > 0) && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              Showing personalized event recommendations based on your preferences
+            </Typography>
+          </Alert>
+        )}
+      </Paper>
+
+      {/* Results Section */}
+      {events.length > 0 ? (
+        <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
+          <Typography variant="h5" mb={3} fontWeight="medium">
+            {isShowingRecommendations ? 'Personalized Recommendations' : 'Search Results'}
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {events.map(event => (
+              <Card key={event.id} sx={{ width: '100%' }}>
+                <Box sx={{ display: 'flex', width: '100%' }}>
+                  <CardContent sx={{ 
+                    py: 2, 
+                    px: 3,
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%',
+                    justifyContent: 'space-between'
+                  }}>
+                    <Box sx={{ width: '60%' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Typography variant="h6" sx={{ fontWeight: 'bold', mr: 2 }}>
                           {event.title}
@@ -1026,14 +1036,14 @@ if (searchId && isRecentSearch && !isShowingRecommendations) {
                           />
                         )}
                         {(event.ticketPrice !== undefined && event.ticketPrice !== null) && (
-  <Chip
-    label={event.ticketPrice === 0 ? 'Free' : `Price: $${event.ticketPrice}`}
-    color={event.ticketPrice === 0 ? 'success' : 'info'}
-    size="small"
-    sx={{ ml: 1 }}
-    icon={<AttachMoneyIcon />}
-  />
-)}
+                          <Chip
+                            label={event.ticketPrice === 0 ? 'Free' : `Price: $${event.ticketPrice}`}
+                            color={event.ticketPrice === 0 ? 'success' : 'info'}
+                            size="small"
+                            sx={{ ml: 1 }}
+                            icon={<AttachMoneyIcon />}
+                          />
+                        )}
                       </Box>
                       
                       <Typography variant="body1" sx={{ mb: 0.5 }}>
@@ -1049,103 +1059,133 @@ if (searchId && isRecentSearch && !isShowingRecommendations) {
                       display: 'flex', 
                       flexDirection: 'column', 
                       alignItems: 'flex-end',
-                      minWidth: '200px'
+                      gap: 1,
+                      width: '40%',
+                      minWidth: 'fit-content'
                     }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <EventIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
                         <Typography variant="body1" noWrap>
                           {event.day}, {event.startHour} - {event.endHour}
                         </Typography>
                       </Box>
                       
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <PeopleIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
                         <Typography variant="body1">
                           Participants: {event.participantsIds?.length || 0}/{event.maxParticipants || 'Unlimited'}
                         </Typography>
                       </Box>
                       
-                      <Button 
-                        color="primary" 
-                        variant="contained"
-                        onClick={() => handleViewDetails(event.id)}
-                        size="small"
-                        sx={{ mt: 1 }}
-                      >
-                        View Details
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button 
+                          color="primary" 
+                          variant="contained"
+                          onClick={() => handleViewDetails(event.id)}
+                          size="small"
+                          startIcon={<InfoIcon />}
+                        >
+                          View Details
+                        </Button>
+                        {(isPlanner && event.owner === user.userId) && (
+                          <Button 
+                            color="secondary"
+                            variant="outlined" 
+                            onClick={() => handleEditEvent(event.id)}
+                            size="small"
+                          >
+                            Edit
+                          </Button>
+                        )}
+                      </Box>
                     </Box>
-                  </Box>
+                  </CardContent>
                 </Box>
-                
-                {(isPlanner && event.owner === user.userId) && (
-                  <Box sx={{ px: 2, pb: 2, pt: 0, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-                    <Button 
-                      color="secondary"
-                      variant="outlined" 
-                      onClick={() => handleEditEvent(event.id)}
-                      size="small"
-                    >
-                      Edit
-                    </Button>
-                  </Box>
+              </Card>
+            ))}
+          </Box>
+          
+          {/* Pagination */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, gap: 2 }}>
+            <Button 
+              variant="outlined" 
+              onClick={() => handlePageChange(null, pageNumber - 1)} 
+              disabled={pageNumber <= 1 || loading || recommendationsLoading}
+            >
+              Previous
+            </Button>
+            <Typography>
+              Page {pageNumber} of {paginationInfo.totalPages}
+            </Typography>
+            <Button 
+              variant="outlined" 
+              onClick={() => handlePageChange(null, pageNumber + 1)} 
+              disabled={pageNumber >= paginationInfo.totalPages || loading || recommendationsLoading}
+            >
+              Next
+            </Button>
+          </Box>
+        </Paper>
+      ) : (
+        <>
+          {/* No results messages */}
+          {hasSearched && !loading && !recommendationsLoading && (
+            <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary" mb={2}>
+                {isShowingRecommendations ? 'No recommendations found' : 'No events found'}
+              </Typography>
+              <Typography variant="body1" color="text.secondary" mb={3}>
+                {isShowingRecommendations 
+                  ? 'Try adjusting your city filter for better recommendations' 
+                  : 'Try adjusting your search filters'
+                }
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                <Button 
+                  variant="outlined" 
+                  onClick={handleClearFilters}
+                  startIcon={<ClearIcon />}
+                >
+                  Clear All Filters
+                </Button>
+                {!isShowingRecommendations ? (
+                  <Button 
+                    variant="contained" 
+                    color="secondary"
+                    onClick={handleSuggestionsClick}
+                    startIcon={<RecommendIcon />}
+                  >
+                    Get Suggestions Instead
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="contained" 
+                    onClick={handleSearchClick}
+                    startIcon={<SearchIcon />}
+                  >
+                    Try Regular Search
+                  </Button>
                 )}
               </Box>
-            </Card>
-          ))
-        ) : (
-          <Box sx={{ textAlign: 'center', py: 4, width: '100%' }}>
-            <Typography variant="h6" color="text.secondary">
-              {isShowingRecommendations ? 'No recommendations found' : 'No events found'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {isShowingRecommendations 
-                ? 'Try adjusting your city filter for better recommendations' 
-                : 'Try adjusting your search filters'
-              }
-            </Typography>
-          </Box>
-        )}
-      </Box>
+            </Paper>
+          )}
 
-      {events.length > 0 && (
-        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <FormControl sx={{ minWidth: 120 }}>
-            <Select
-              value={pageSize}
-              onChange={handlePageSizeChange}
-              input={<OutlinedInput />}
-              size="small"
-              displayEmpty
-              MenuProps={{
-                PaperProps: {
-                  style: {
-                    maxHeight: 200
-                  },
-                },
-              }}
-            >
-              {pageSizeOptions.map(option => (
-                <MenuItem key={option} value={option}>{option} per page</MenuItem>
-              ))}
-            </Select>
-            <FormHelperText>Events per page</FormHelperText>
-          </FormControl>
-          
-          <Pagination 
-            count={paginationInfo.totalPages} 
-            page={pageNumber} 
-            onChange={handlePageChange}
-            color="primary"
-            showFirstButton
-            showLastButton
-            disabled={loading || recommendationsLoading}
-          />
-          
-          <Typography variant="body2" color="text.secondary">
-            Showing {events.length} of {paginationInfo.totalItems} {isShowingRecommendations ? 'recommended ' : ''}events
-          </Typography>
-        </Box>
+          {!hasSearched && !loading && !recommendationsLoading && (
+            <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary">
+                Enter search criteria and click "Search" to find events or "Suggestions" to get personalized recommendations.
+              </Typography>
+            </Paper>
+          )}
+
+          {(loading || recommendationsLoading) && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4 }}>
+              <Typography variant="h6">
+                {isShowingRecommendations ? 'Loading recommendations...' : 'Loading events...'}
+              </Typography>
+            </Box>
+          )}
+        </>
       )}
     </Box>
   );

@@ -635,7 +635,6 @@ export default function EventUpdate() {
                         value={form.startHour} 
                         onChange={v => {
                           setForm(f => {
-                            // If end hour is set and it's before the new start hour, clear it
                             const newForm = { ...f, startHour: v };
                             if (f.endHour && v && f.endHour.isBefore(v)) {
                               newForm.endHour = null;
@@ -932,7 +931,6 @@ export default function EventUpdate() {
                   <Grid item xs={12} md={2}>
                     <TextField
                       label="Min Players"
-                      type="number"
                       fullWidth
                       size="small"
                       value={minPlayers}
@@ -942,7 +940,6 @@ export default function EventUpdate() {
                   <Grid item xs={12} md={2}>
                     <TextField
                       label="Max Players"
-                      type="number"
                       fullWidth
                       size="small"
                       value={maxPlayers}
@@ -952,7 +949,6 @@ export default function EventUpdate() {
                   <Grid item xs={12} md={2}>
                     <TextField
                       label="Year Published"
-                      type="number"
                       fullWidth
                       size="small"
                       value={yearPublished}
@@ -989,7 +985,6 @@ export default function EventUpdate() {
                       <Grid item xs={12} md={3}>
                         <TextField
                           label="Min Age"
-                          type="number"
                           fullWidth
                           size="small"
                           value={minAge}
@@ -999,7 +994,6 @@ export default function EventUpdate() {
                       <Grid item xs={12} md={3}>
                         <TextField
                           label="Max Playtime"
-                          type="number"
                           fullWidth
                           size="small"
                           value={maxPlaytime}
@@ -1009,7 +1003,6 @@ export default function EventUpdate() {
                       <Grid item xs={12} md={3}>
                         <TextField
                           label="Min Complexity"
-                          type="number"
                           fullWidth
                           size="small"
                           inputProps={{ step: "0.1" }}
@@ -1020,7 +1013,6 @@ export default function EventUpdate() {
                       <Grid item xs={12} md={3}>
                         <TextField
                           label="Max Complexity"
-                          type="number"
                           fullWidth
                           size="small"
                           inputProps={{ step: "0.1" }}
