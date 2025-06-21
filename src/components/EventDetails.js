@@ -713,7 +713,7 @@ const EventDetails = () => {
                     <Button 
                       variant="contained" 
                       color="primary"
-                      onClick={() => navigate(`/boardgame/${boardgames[activeStep].gameId}?from=events`)}
+                      onClick={() => navigate(`/boardgame/${boardgames[activeStep].gameId}?from=events&eventId=${eventId}`)}
                       >
                       View Details
                     </Button>

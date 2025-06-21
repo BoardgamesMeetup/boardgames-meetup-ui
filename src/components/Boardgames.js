@@ -30,24 +30,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoIcon from '@mui/icons-material/Info';
 import RecommendIcon from '@mui/icons-material/Recommend';
-
-const mechanicsOptions = [
-  "Deck Building",
-  "Worker Placement",
-  "Drafting",
-  "Tile Placement",
-  "Cooperative",
-  "Hidden Role",
-];
-
-const domainOptions = [
-  "Fantasy",
-  "Sci-Fi",
-  "Historical",
-  "Horror",
-  "Wargames",
-  "Family",
-];
+import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
 
 function Boardgames() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -63,8 +46,9 @@ function Boardgames() {
   const [maxPlaytime, setMaxPlaytime] = useState(searchParams.get("maxPlaytime") || "");
   const [minComplexity, setMinComplexity] = useState(searchParams.get("minComplexity") || "");
   const [maxComplexity, setMaxComplexity] = useState(searchParams.get("maxComplexity") || "");
-  const [selectedMechanics, setSelectedMechanics] = useState(
-    searchParams.get("mechanics") ? searchParams.get("mechanics").split(",").filter(m => m !== "") : []
+
+  const [selectedMechanicCategories, setSelectedMechanicCategories] = useState(
+    searchParams.get("mechanicCategories") ? searchParams.get("mechanicCategories").split(",").filter(m => m !== "") : []
   );
   const [selectedDomains, setSelectedDomains] = useState(
     searchParams.get("domains") ? searchParams.get("domains").split(",").filter(d => d !== "") : []
@@ -91,6 +75,20 @@ function Boardgames() {
   const [suggestions, setSuggestions] = useState([]);
   const [error, setError] = useState("");
 
+  const mechanicCategoryOptions = Object.keys(MECHANIC_CATEGORIES);
+  const domainOptions = DOMAIN_OPTIONS;
+
+  const getIndividualMechanicsFromCategories = (categories) => {
+    const mechanics = [];
+    categories.forEach(category => {
+      if (MECHANIC_CATEGORIES[category]) {
+        mechanics.push(...MECHANIC_CATEGORIES[category]);
+      }
+    });
+    return mechanics;
+  };
+
+
   useEffect(() => {
     const restoreStateFromLocalStorage = () => {
       try {
@@ -107,8 +105,8 @@ function Boardgames() {
           if (savedFilters.minComplexity) setMinComplexity(savedFilters.minComplexity);
           if (savedFilters.maxComplexity) setMaxComplexity(savedFilters.maxComplexity);
           
-          if (savedFilters.mechanics && Array.isArray(savedFilters.mechanics)) {
-            setSelectedMechanics(savedFilters.mechanics);
+          if (savedFilters.mechanicCategories && Array.isArray(savedFilters.mechanicCategories)) {
+            setSelectedMechanicCategories(savedFilters.mechanicCategories);
           }
           if (savedFilters.domains && Array.isArray(savedFilters.domains)) {
             setSelectedDomains(savedFilters.domains);
@@ -160,6 +158,8 @@ function Boardgames() {
   };
 
   const buildSearchCriteria = () => {
+    const individualMechanics = getIndividualMechanicsFromCategories(selectedMechanicCategories);
+
     return {
       name: boardgameName || null,
       minPlayers: minPlayers ? Number(minPlayers) : null,
@@ -168,7 +168,7 @@ function Boardgames() {
       maxPlaytime: maxPlaytime ? Number(maxPlaytime) : null,
       minComplexity: minComplexity ? parseFloat(minComplexity) : null,
       maxComplexity: maxComplexity ? parseFloat(maxComplexity) : null,
-      mechanics: selectedMechanics.length ? selectedMechanics : null,
+      mechanics: individualMechanics.length ? individualMechanics : null,
       domains: selectedDomains.length ? selectedDomains : null,
       yearPublished: yearPublished ? Number(yearPublished) : null,
     };
@@ -246,7 +246,7 @@ function Boardgames() {
         maxPlaytime,
         minComplexity,
         maxComplexity,
-        mechanics: selectedMechanics.join(","),
+        mechanics: selectedMechanicCategories.join(","),
         domains: selectedDomains.join(","),
         yearPublished,
         page: overridePage.toString(),
@@ -268,7 +268,7 @@ function Boardgames() {
         maxPlaytime,
         minComplexity,
         maxComplexity,
-        mechanics: selectedMechanics,
+        mechanics: selectedMechanicCategories,
         domains: selectedDomains,
         yearPublished
       };
@@ -366,7 +366,7 @@ function Boardgames() {
     setMaxPlaytime("");
     setMinComplexity("");
     setMaxComplexity("");
-    setSelectedMechanics([]);
+    setSelectedMechanicCategories([]);
     setSelectedDomains([]);
     setYearPublished("");
     setPageNumber(1);
@@ -395,11 +395,40 @@ function Boardgames() {
     setPageNumber(1);
     setSuggestionPageNumber(1);
     
-    if (showingSuggestions) {
-      handleFetchSuggestions(1);
-    } else {
-      handleFetchBoardgame(1);
-    }
+    setBoardgame(null);
+    setBoardgames([]);
+    setSuggestions([]);
+    setTotalPages(1);
+    setSuggestionTotalPages(1);
+    setHasSearched(false);
+    setShowingSuggestions(false);
+
+    localStorage.removeItem('boardgameSearchResults');
+    localStorage.removeItem('boardgameTotalPages');
+    localStorage.setItem('boardgamePageSize', newSize.toString());
+    localStorage.setItem('boardgamePageNumber', '1');
+    
+    const newParams = {
+      boardgameId,
+      boardgameName,
+      minPlayers,
+      maxPlayers,
+      minAge,
+      maxPlaytime,
+      minComplexity,
+      maxComplexity,
+      mechanics: selectedMechanicCategories.join(","),
+      domains: selectedDomains.join(","),
+      yearPublished,
+      page: "1",
+      size: newSize.toString(),
+    };
+    
+    Object.keys(newParams).forEach((key) => {
+      if (!newParams[key]) delete newParams[key];
+    });
+    
+    setSearchParams(newParams);
   };
 
   const getQueryParams = () => {
@@ -413,7 +442,7 @@ function Boardgames() {
     if (maxPlaytime) params.append("maxPlaytime", maxPlaytime);
     if (minComplexity) params.append("minComplexity", minComplexity);
     if (maxComplexity) params.append("maxComplexity", maxComplexity);
-    if (selectedMechanics.length) params.append("mechanics", selectedMechanics.join(","));
+    if (selectedMechanicCategories.length) params.append("mechanicCategories", selectedMechanicCategories.join(","));
     if (selectedDomains.length) params.append("domains", selectedDomains.join(","));
     if (yearPublished) params.append("yearPublished", yearPublished);
     return params.toString();
@@ -549,16 +578,16 @@ function Boardgames() {
                     labelId="mechanics-label"
                     label="Mechanics"
                     multiple
-                    value={selectedMechanics}
-                    onChange={(e) => setSelectedMechanics(e.target.value)}
+                    value={selectedMechanicCategories}
+                    onChange={(e) => setSelectedMechanicCategories(e.target.value)}
                     input={<OutlinedInput label="Mechanics" />}
                     renderValue={(selected) => selected.join(", ")}
                     sx={{ minWidth: 205 }}
                   >
-                    {mechanicsOptions.map((mechanic) => (
-                      <MenuItem key={mechanic} value={mechanic}>
-                        <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
-                        <ListItemText primary={mechanic} />
+                    {mechanicCategoryOptions.map((category) => (
+                      <MenuItem key={category} value={category}>
+                        <Checkbox checked={selectedMechanicCategories.indexOf(category) > -1} />
+                        <ListItemText primary={category} />
                       </MenuItem>
                     ))}
                   </Select>
@@ -594,7 +623,10 @@ function Boardgames() {
         <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
           <Button 
             variant="contained" 
-            onClick={() => handleFetchBoardgame(1)} 
+            onClick={() => {
+              setPageNumber(1);
+              handleFetchBoardgame(1);
+            }} 
             disabled={isLoading || isLoadingSuggestions}
             startIcon={<SearchIcon />}
           >
@@ -603,7 +635,10 @@ function Boardgames() {
           <Button 
             variant="contained" 
             color="secondary"
-            onClick={() => handleFetchSuggestions(1)} 
+            onClick={() => {
+              setPageNumber(1);
+              handleFetchSuggestions(1);
+            }} 
             disabled={isLoading || isLoadingSuggestions}
             startIcon={<RecommendIcon />}
           >
@@ -641,54 +676,55 @@ function Boardgames() {
 
       {boardgame && (
         <Paper sx={{ maxWidth: 1200, mx: 'auto', mb: 4, p: 3, boxShadow: 3 }}>
-          <Typography variant="h5" mb={3} fontWeight="medium">Boardgame Details</Typography>
-          
-          <Card sx={{ display: 'flex', mb: 2 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              width: '100%' 
-            }}>
-              <CardContent sx={{ 
-                display: 'flex', 
-                flexDirection: { xs: 'column', md: 'row' },
-                gap: 2,
-                width: '100%'
-              }}>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  width: { xs: '100%', md: '70%' } 
-                }}>
-                  <Typography variant="h6" component="div">
-                    {boardgame.names && boardgame.names.length
-                      ? boardgame.names[0].value
-                      : boardgame.name || "Unnamed"}
-                  </Typography>
+           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Card key={boardgame.gameId} sx={{ width: '100%' }}>
+                <Box sx={{ display: 'flex', width: '100%' }}>
+                  <CardContent sx={{ 
+                    py: 2, 
+                    px: 3,
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%',
+                    justifyContent: 'space-between'
+                  }}>
+                    <Typography variant="subtitle1" sx={{ 
+                      width: '50%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {boardgame.name}
+                    </Typography>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'flex-end', 
+                      gap: 3, 
+                      width: '50%',
+                      minWidth: 'fit-content'
+                    }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+                        Year: {boardgame.yearPublished}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+                        Players: {boardgame.minPlayers} - {boardgame.maxPlayers}
+                      </Typography>
+                      <Button
+                        component={Link}
+                        to={`/boardgame/${boardgame.gameId}?${getQueryParams()}`}
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        startIcon={<InfoIcon />}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        View Details
+                      </Button>
+                    </Box>
+                  </CardContent>
                 </Box>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'flex-end',
-                  gap: 3,
-                  width: { xs: '100%', md: '30%' } 
-                }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Year: {boardgame.yearpublished}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Players: {boardgame.minplayers} - {boardgame.maxplayers}
-                  </Typography>
-                </Box>
-              </CardContent>
-              <Divider />
-              <Box sx={{ p: 2 }}>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
-                  {boardgame.description ? boardgame.description.substring(0, 300) + (boardgame.description.length > 300 ? '...' : '') : "No description available."}
-                </Typography>
-              </Box>
-            </Box>
-          </Card>
+              </Card>
+          </Box>
         </Paper>
       )}
 
@@ -871,7 +907,10 @@ function Boardgames() {
             <Button 
               variant="contained" 
               color="secondary"
-              onClick={() => handleFetchSuggestions(1)}
+              onClick={() => {
+                setPageNumber(1);
+                handleFetchSuggestions(1);
+              }}
               startIcon={<RecommendIcon />}
             >
               Get Suggestions Instead
@@ -899,7 +938,10 @@ function Boardgames() {
             </Button>
             <Button 
               variant="contained" 
-              onClick={() => handleFetchBoardgame(1)}
+              onClick={() => {
+                setPageNumber(1);
+                handleFetchBoardgame(1);
+              }}
               startIcon={<SearchIcon />}
             >
               Try Regular Search

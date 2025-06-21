@@ -25,24 +25,8 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { getSession } from '../cognito';
+import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
 
-const mechanicsOptions = [
-  "Deck Building",
-  "Worker Placement",
-  "Drafting",
-  "Tile Placement",
-  "Cooperative",
-  "Hidden Role",
-];
-
-const domainOptions = [
-  "Fantasy",
-  "Sci-Fi",
-  "Historical",
-  "Horror",
-  "Wargames",
-  "Family",
-];
 
 export default function EventBoardgames() {
   const { eventId } = useParams();
@@ -61,7 +45,7 @@ export default function EventBoardgames() {
   const [maxPlaytime, setMaxPlaytime] = useState("");
   const [minComplexity, setMinComplexity] = useState("");
   const [maxComplexity, setMaxComplexity] = useState("");
-  const [selectedMechanics, setSelectedMechanics] = useState([]);
+  const [selectedMechanicCategories, setSelectedMechanicCategories] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
   const [yearPublished, setYearPublished] = useState("");
   
@@ -75,6 +59,19 @@ export default function EventBoardgames() {
   const [searchError, setSearchError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  const mechanicCategoryOptions = Object.keys(MECHANIC_CATEGORIES);
+  const domainOptions = DOMAIN_OPTIONS;
+
+  const getIndividualMechanicsFromCategories = (categories) => {
+    const mechanics = [];
+    categories.forEach(category => {
+      if (MECHANIC_CATEGORIES[category]) {
+        mechanics.push(...MECHANIC_CATEGORIES[category]);
+      }
+    });
+    return mechanics;
+  };
   
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -140,7 +137,8 @@ export default function EventBoardgames() {
     setSearchError('');
     setLoadingSearch(true);
     setPageNumber(page);
-    
+    const individualMechanics = getIndividualMechanicsFromCategories(selectedMechanicCategories);
+
     try {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
@@ -153,7 +151,7 @@ export default function EventBoardgames() {
         maxPlaytime: maxPlaytime ? Number(maxPlaytime) : null,
         minComplexity: minComplexity ? parseFloat(minComplexity) : null,
         maxComplexity: maxComplexity ? parseFloat(maxComplexity) : null,
-        mechanics: selectedMechanics.length ? selectedMechanics : null,
+        mechanics: individualMechanics.length ? individualMechanics : null,
         domains: selectedDomains.length ? selectedDomains : null,
         yearPublished: yearPublished ? Number(yearPublished) : null,
       };
@@ -238,7 +236,7 @@ export default function EventBoardgames() {
     setMaxPlaytime("");
     setMinComplexity("");
     setMaxComplexity("");
-    setSelectedMechanics([]);
+    setSelectedMechanicCategories([]);
     setSelectedDomains([]);
     setYearPublished("");
     setPageNumber(1);
@@ -469,16 +467,16 @@ export default function EventBoardgames() {
                     labelId="mechanics-label"
                     label="Mechanics"
                     multiple
-                    value={selectedMechanics}
-                    onChange={(e) => setSelectedMechanics(e.target.value)}
+                    value={selectedMechanicCategories}
+                    onChange={(e) => setSelectedMechanicCategories(e.target.value)}
                     input={<OutlinedInput label="Mechanics" />}
                     renderValue={(selected) => selected.join(", ")}
                     sx={{ minWidth: 210 }}
                   >
-                    {mechanicsOptions.map((mechanic) => (
-                      <MenuItem key={mechanic} value={mechanic}>
-                        <Checkbox checked={selectedMechanics.indexOf(mechanic) > -1} />
-                        <ListItemText primary={mechanic} />
+                    {mechanicCategoryOptions.map((category) => (
+                      <MenuItem key={category} value={category}>
+                        <Checkbox checked={selectedMechanicCategories.indexOf(category) > -1} />
+                        <ListItemText primary={category} />
                       </MenuItem>
                     ))}
                   </Select>
