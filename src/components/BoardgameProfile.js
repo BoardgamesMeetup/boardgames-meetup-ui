@@ -169,6 +169,8 @@ function BoardgameProfile() {
 
     if (fromPage === 'events' && eventId) {
       navigate(`/events/${eventId}`);
+    } else if (fromPage === 'profile') {
+      navigate('/user-profile');
     } else {
       const queryParams = {};
       searchParams.forEach((value, key) => {

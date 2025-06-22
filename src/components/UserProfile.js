@@ -16,11 +16,14 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { getSession, changePassword, deleteUser, updateEmail } from "../cognito"; 
+import { Link } from 'react-router-dom';
+import InfoIcon from '@mui/icons-material/Info';
 
 function UserProfile() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
+  //possible adding favorite city in the future
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
@@ -82,41 +85,6 @@ function UserProfile() {
     fetchUserProfile();
   }, []);
 
-  const handleSaveProfile = async () => {
-    try {
-      setError("");
-      setLoading(true);
-
-      const session = await getSession();
-      const token = session.getAccessToken().getJwtToken();
-
-      const updatedProfile = {
-        name,
-        location,
-        email, 
-        role
-      };
-
-      const response = await fetch("http://localhost:9013/user-service/profile", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(updatedProfile),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update profile");
-      }
-
-      alert("Profile updated successfully!");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleOpenPasswordDialog = () => setOpenPasswordDialog(true);
   const handleClosePasswordDialog = () => {
     setOpenPasswordDialog(false);
@@ -168,19 +136,13 @@ function UserProfile() {
           label="Name"
           variant="outlined"
           value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <TextField
-          label="Location"
-          variant="outlined"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
+          InputProps={{ readOnly: true }}
         />
         <TextField
           label="Email"
           variant="outlined"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          InputProps={{ readOnly: true }}
         />
         <TextField
           label="Role"
@@ -191,9 +153,6 @@ function UserProfile() {
       </Box>
 
       <Box sx={{ mt: 2 }}>
-        <Button variant="contained" onClick={handleSaveProfile}>
-          Save Profile
-        </Button>
         <Button
           variant="outlined"
           onClick={handleOpenPasswordDialog}
@@ -274,24 +233,38 @@ function UserProfile() {
               return (
                 <Card
                   key={game.gameId}
-                  sx={{ minWidth: 250, flex: "0 0 auto" }}
+                  sx={{ minWidth: 300, flex: "0 0 auto", height: 500 }}
                 >
                   {game.image && (
                     <CardMedia
                       component="img"
-                      height="150"
+                      height="180"
                       image={game.image}
                       alt={game.name}
                     />
                   )}
-                  <CardContent>
+                  <CardContent sx={{display : 'flex', flexDirection: 'column', height: '220px'}}>
                     <Typography variant="h6">{game.name}</Typography>
                     <Typography variant="body2" color="text.secondary">
                       Players: {game.minPlayers} - {game.maxPlayers}
                     </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                      {cleanedDesc.substring(0, 100)}...
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-line", flex: 1, overflow: 'hidden', mb: 2 }}>
+                      {cleanedDesc.substring(0, 200)}...
                     </Typography>
+                    <Button
+                component={Link}
+                to={`/boardgame/${game.gameId}?from=profile`}
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<InfoIcon />}
+                sx={{ 
+                  flexShrink: 0,
+                  alignSelf: 'flex-start'
+                }}
+              >
+                View Details
+              </Button>
                   </CardContent>
                 </Card>
               );

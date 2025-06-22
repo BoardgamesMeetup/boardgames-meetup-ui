@@ -42,6 +42,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
+import { useLoadScript } from '@react-google-maps/api';
 
 const cityOptions = ['Cluj', 'Bucuresti', 'Timisoara'];
 const participantsOptions = [10, 20, 30, 40, 50];
@@ -70,6 +71,11 @@ export default function EventUpdate() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
+    libraries: libraries,
+  });
+
   const [tabValue, setTabValue] = useState(0);
   
   const [form, setForm] = useState({
@@ -549,12 +555,45 @@ export default function EventUpdate() {
     );
   }
 
+  if (loadError) {
+    console.error('Google Maps load error:', loadError);
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography color="error" variant="h6" mb={2}>
+          Error loading Google Maps
+        </Typography>
+        <Typography variant="body2" color="text.secondary" mb={3}>
+          Please check your internet connection and try again.
+        </Typography>
+        <Button 
+          variant="contained" 
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </Button>
+      </Box>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column'
+      }}>
+        <CircularProgress size={40} />
+        <Typography sx={{ mt: 2 }}>Loading Google Maps...</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          This may take a few moments
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
-    <LoadScript 
-      googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY} 
-      libraries={libraries}
-      onError={(error) => console.error("Google Maps loading error:", error)}
-    >
       <Box sx={{ p: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, ml: -1 }}>
           <Button
@@ -1235,6 +1274,6 @@ export default function EventUpdate() {
           </Button>
         </Box>
       </Box>
-    </LoadScript>
+    // </LoadScript>
   );
 }
