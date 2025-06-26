@@ -44,8 +44,61 @@ import SearchIcon from '@mui/icons-material/Search';
 import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
 import { useLoadScript } from '@react-google-maps/api';
 
-const cityOptions = ['Cluj', 'Bucuresti', 'Timisoara'];
+const cityOptions = ['Cluj-Napoca', 'București', 'Timișoara'];
 const participantsOptions = [10, 20, 30, 40, 50];
+
+
+const defaultFilters = {
+  boardgameId: '',
+  boardgameName: '',
+  minPlayers: '',
+  maxPlayers: '',
+  minAge: '',
+  maxPlaytime: '',
+  minComplexity: '',
+  maxComplexity: '',
+  mechanics: [],
+  domains: [],
+  yearPublished: ''
+};
+
+// Validation rules
+const validationRules = {
+  eventName: {
+    required: true,
+    maxLength: 50,
+    pattern: /^[a-zA-Z0-9\s\-.,!?'&]+$/,
+    message: 'Event name must be 3-50 characters, letters/numbers/basic punctuation only'
+  },
+  venueName: {
+    required: true,
+    maxLength: 50,
+    pattern: /^[a-zA-Z0-9\s\-.,&']+$/,
+    message: 'Venue name must be 3-50 characters'
+  },
+  description: {
+    required: true,
+    maxLength: 500,
+    minLength: 10,
+    message: 'Description must be 10-500 characters'
+  },
+  address: {
+    required: true,
+    maxLength: 100,
+    minLength: 10,
+    message: 'Address must be 10-100 characters'
+  },
+  addressInfo: {
+    maxLength: 200,
+    message: 'Address info must be max 200 characters'
+  },
+  price: {
+    min: 0,
+    max: 10000,
+    message: 'Price must be between 0 and 10,000'
+  }
+};
+
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -101,22 +154,25 @@ export default function EventUpdate() {
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
-  
+  const [addressSelected, setAddressSelected] = useState(true);
+
   const [selectedBoardgames, setSelectedBoardgames] = useState([]);
   const [loadingSelected, setLoadingSelected] = useState(true);
   
-  const [boardgameName, setBoardgameName] = useState("");
-  const [minPlayers, setMinPlayers] = useState("");
-  const [maxPlayers, setMaxPlayers] = useState("");
-  const [yearPublished, setYearPublished] = useState("");
+  // const [boardgameName, setBoardgameName] = useState("");
+  // const [minPlayers, setMinPlayers] = useState("");
+  // const [maxPlayers, setMaxPlayers] = useState("");
+  // const [yearPublished, setYearPublished] = useState("");
   
-  const [minAge, setMinAge] = useState("");
-  const [maxPlaytime, setMaxPlaytime] = useState("");
-  const [minComplexity, setMinComplexity] = useState("");
-  const [maxComplexity, setMaxComplexity] = useState("");
-  const [selectedMechanicCategories, setSelectedMechanicCategories] = useState([]);
-  const [selectedDomains, setSelectedDomains] = useState([]);
+  // const [minAge, setMinAge] = useState("");
+  // const [maxPlaytime, setMaxPlaytime] = useState("");
+  // const [minComplexity, setMinComplexity] = useState("");
+  // const [maxComplexity, setMaxComplexity] = useState("");
+  // const [selectedMechanicCategories, setSelectedMechanicCategories] = useState([]);
+  // const [selectedDomains, setSelectedDomains] = useState([]);
   
+  const [filters, setFilters] = useState(defaultFilters);
+
   const [expandedFilters, setExpandedFilters] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -127,6 +183,43 @@ export default function EventUpdate() {
   const [selectedError, setSelectedError] = useState('');
   const [searchError, setSearchError] = useState('');
   
+
+  // Validation error states
+  const [stringErrors, setStringErrors] = useState({
+    eventName: '',
+    venueName: '',
+    address: '',
+    addressInfo: '',
+    description: '',
+    boardgameName: ''
+  });
+
+  const [numberErrors, setNumberErrors] = useState({
+    price: '',
+    minAge: '',
+    maxPlaytime: '',
+    yearPublished: ''
+  });
+
+  const [playersError, setPlayersError] = useState({
+    minPlayers: '',
+    maxPlayers: ''
+  });
+  
+  const [complexityError, setComplexityError] = useState({
+    minComplexity: '',
+    maxComplexity: ''
+  });
+
+  const [dateErrors, setDateErrors] = useState({
+    day: ''
+  });
+
+  const [timeErrors, setTimeErrors] = useState({
+    startHour: '',
+    endHour: ''
+  });
+
   const autoRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -143,6 +236,23 @@ export default function EventUpdate() {
     return mechanics;
   };
 
+  const CharacterCounter = ({ current, max, fieldName }) => {
+    const remaining = max - current;
+    const isOverLimit = remaining < 0;
+    const isNearLimit = remaining < 50 && remaining >= 0;
+    
+    return (
+      <Typography 
+        variant="caption" 
+        color={isOverLimit ? 'error' : isNearLimit ? 'warning' : 'text.secondary'}
+        sx={{ mt: 0.5, display: 'block', fontSize: '0.75rem' }}
+      >
+        {current}/{max} characters
+        {isOverLimit && ` (${Math.abs(remaining)} over limit)`}
+      </Typography>
+    );
+  };
+
   const inputStyle = {
     width: '150px',
     '& .MuiOutlinedInput-root': {
@@ -157,6 +267,313 @@ export default function EventUpdate() {
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
+
+
+
+  const createSearchParams = (searchFilters) => {
+    const params = {};
+    
+    if (searchFilters.boardgameName && searchFilters.boardgameName.trim()) {
+      params.name = searchFilters.boardgameName.trim();
+    }
+    if (searchFilters.minPlayers && searchFilters.minPlayers.toString().trim()) {
+      const minPlayers = Number(searchFilters.minPlayers);
+      if (!isNaN(minPlayers) && minPlayers >= 0) {
+        params.minPlayers = minPlayers;
+      }
+    }
+    if (searchFilters.maxPlayers && searchFilters.maxPlayers.toString().trim()) {
+      const maxPlayers = Number(searchFilters.maxPlayers);
+      if (!isNaN(maxPlayers) && maxPlayers >= 0) {
+        params.maxPlayers = maxPlayers;
+      }
+    }
+    if (searchFilters.minAge && searchFilters.minAge.toString().trim()) {
+      const minAge = Number(searchFilters.minAge);
+      if (!isNaN(minAge) && minAge >= 0) {
+        params.minAge = minAge;
+      }
+    }
+    if (searchFilters.maxPlaytime && searchFilters.maxPlaytime.toString().trim()) {
+      const maxPlaytime = Number(searchFilters.maxPlaytime);
+      if (!isNaN(maxPlaytime) && maxPlaytime >= 0) {
+        params.maxPlaytime = maxPlaytime;
+      }
+    }
+    if (searchFilters.minComplexity && searchFilters.minComplexity.toString().trim()) {
+      const minComplexity = parseFloat(searchFilters.minComplexity);
+      if (!isNaN(minComplexity) && minComplexity >= 0) {
+        params.minComplexity = minComplexity;
+      }
+    }
+    if (searchFilters.maxComplexity && searchFilters.maxComplexity.toString().trim()) {
+      const maxComplexity = parseFloat(searchFilters.maxComplexity);
+      if (!isNaN(maxComplexity) && maxComplexity >= 0) {
+        params.maxComplexity = maxComplexity;
+      }
+    }
+    if (searchFilters.yearPublished && searchFilters.yearPublished.toString().trim()) {
+      const yearPublished = Number(searchFilters.yearPublished);
+      if (!isNaN(yearPublished) && yearPublished >= 0) {
+        params.yearPublished = yearPublished;
+      }
+    }
+    
+    // Handle mechanics
+    if (searchFilters.mechanics && searchFilters.mechanics.length > 0) {
+      const individualMechanics = getIndividualMechanicsFromCategories(searchFilters.mechanics);
+      if (individualMechanics.length > 0) {
+        params.mechanics = individualMechanics;
+      }
+    }
+    
+    // Handle domains
+    if (searchFilters.domains && searchFilters.domains.length > 0) {
+      params.domains = searchFilters.domains;
+    }
+    
+    return params;
+  };
+
+  // Field validation function
+  const validateField = (fieldName, value) => {
+    const rule = validationRules[fieldName];
+    if (!rule) return '';
+
+    // Required validation strings
+    if (rule.required && (!value || value.toString().trim() === '')) {
+      return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
+    }
+
+    if (value && value.toString().trim().length > 0 && value.toString().trim().length < 3) {
+      return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} must be at least 3 characters`;
+    }
+
+    // Skip other validations if field is empty and not required
+    if (!rule.required && (!value || value.toString().trim() === '')) {
+      return '';
+    }
+
+    // Min length validation
+    if (rule.minLength && value.length < rule.minLength) {
+      return `Minimum ${rule.minLength} characters required`;
+    }
+
+    // Max length validation
+    if (rule.maxLength && value.length > rule.maxLength) {
+      return `Maximum ${rule.maxLength} characters allowed`;
+    }
+
+    // Pattern validation
+    if (rule.pattern && !rule.pattern.test(value)) {
+      return rule.message;
+    }
+
+    // Number validations
+    if (fieldName === 'price') {
+      const num = parseFloat(value);
+      if (isNaN(num)) return 'Price must be a valid number';
+      if (rule.min !== undefined && num < rule.min) return `Price must be at least ${rule.min}`;
+      if (rule.max !== undefined && num > rule.max) return `Price cannot exceed ${rule.max}`;
+    }
+
+    return '';
+  };
+
+  // Validation functions
+  const validateStringFields = (fields) => {
+    const newErrors = {
+      eventName: '',
+      venueName: '',
+      address: '',
+      addressInfo: '',
+      description: '',
+      boardgameName: ''
+    };
+    
+    const fieldsToValidate = ['eventName', 'venueName', 'address', 'addressInfo', 'description'];
+    
+    fieldsToValidate.forEach(fieldName => {
+      const value = fields[fieldName] ? fields[fieldName].toString().trim() : '';
+      const error = validateField(fieldName, value);
+      if (error) newErrors[fieldName] = error;
+    });
+
+    // Validate boardgame name from filters
+    const boardgameValue = filters.boardgameName ? filters.boardgameName.toString().trim() : '';
+    if (boardgameValue.length > 0 && boardgameValue.length < 3) {
+      newErrors.boardgameName = 'Name must be at least 3 characters';
+    }
+    
+    setStringErrors(newErrors);
+  };
+
+  const validateNumbers = (price, minAge, maxPlaytime, yearPublished) => {
+    const newErrors = {
+      price: '',
+      minAge: '',
+      maxPlaytime: '',
+      yearPublished: ''
+    };
+
+    if (price) {
+      const error = validateField('price', price);
+      if (error) newErrors.price = error;
+    }
+
+    if (minAge && (isNaN(minAge) || minAge < 0)) {
+      newErrors.minAge = 'Minimum age must be a positive number';
+    }
+
+    if (maxPlaytime && (isNaN(maxPlaytime) || maxPlaytime < 0)) {
+      newErrors.maxPlaytime = 'Max playtime must be a positive number';
+    }
+
+    if (yearPublished && (isNaN(yearPublished) || yearPublished < 0)) {
+      newErrors.yearPublished = 'Year published must be a positive number';
+    }
+
+    setNumberErrors(newErrors);
+  };
+
+  const validatePlayers = (minPlayers, maxPlayers) => {
+    const newErrors = {
+      minPlayers: '',
+      maxPlayers: ''
+    };
+
+    if (minPlayers && (isNaN(minPlayers) || minPlayers < 0)) {
+      newErrors.minPlayers = 'Min number of players must be a positive number';
+    }
+
+    if (maxPlayers && (isNaN(maxPlayers) || maxPlayers < 0)) {
+      newErrors.maxPlayers = 'Max number of players must be a positive number';
+    }
+
+    if (minPlayers && maxPlayers && !isNaN(minPlayers) && !isNaN(maxPlayers) && minPlayers > maxPlayers) {
+      newErrors.maxPlayers = 'Max number of players must be greater than min number of players';
+    }
+
+    setPlayersError(newErrors);
+  };
+
+  const validateComplexity = (minComplexity, maxComplexity) => {
+    const newErrors = {
+      minComplexity: '',
+      maxComplexity: ''
+    };
+
+    if (minComplexity && (isNaN(minComplexity) || minComplexity < 0 || minComplexity > 5)) {
+      newErrors.minComplexity = 'Min complexity must be a positive number between 0 and 5';
+    }
+
+    if (maxComplexity && (isNaN(maxComplexity) || maxComplexity < 0 || maxComplexity > 5)) {
+      newErrors.maxComplexity = 'Max complexity must be a positive number between 0 and 5';
+    }
+
+    if (minComplexity && maxComplexity && !isNaN(minComplexity) && !isNaN(maxComplexity) && minComplexity > maxComplexity) {
+      newErrors.maxComplexity = 'Max complexity must be greater than min complexity';
+    }
+
+    setComplexityError(newErrors);
+  };
+
+  const validateDates = (day) => {
+    const newErrors = {
+      day: ''
+    };
+
+    if (day) {
+      const today = dayjs().startOf('day');
+      const maxDate = dayjs('2025-12-31');
+
+      if (day.startOf('day').isSame(today) || day.isBefore(today)) {
+        newErrors.day = 'Date must be in the future (after today)';
+      } else if (day.isAfter(maxDate)) {
+        newErrors.day = 'Date cannot be after December 31, 2025';
+      }
+    }
+
+    setDateErrors(newErrors);
+  };
+
+  const validateTimes = (startHour, endHour) => {
+    const newErrors = {
+      startHour: '',
+      endHour: ''
+    };
+
+    if (startHour && endHour) {
+      if (endHour.isBefore(startHour) || endHour.isSame(startHour)) {
+        const startTimeStr = startHour.format('HH:mm');
+        newErrors.endHour = `End time must be after start time (${startTimeStr}). Please select a time after ${startTimeStr}.`;
+      } else {
+        const duration = endHour.diff(startHour, 'hours', true);
+        if (duration > 12) {
+          newErrors.endHour = 'Event duration cannot exceed 12 hours';
+        }
+      }
+    }
+
+    setTimeErrors(newErrors);
+  };
+
+  // Handle field changes with validation
+  const handleFieldChange = (fieldName, value) => {
+    setForm(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+
+    // Validate field
+    setTimeout(() => {
+      validateStringFields({ ...form, [fieldName]: value });
+      if (fieldName === 'price') {
+        validateNumbers(value, null, null, null);
+      }
+      if (fieldName === 'day') {
+        validateDates(value);
+      }
+    }, 0);
+  };
+
+  const hasErrors = () => {
+    return playersError.minPlayers !== '' || playersError.maxPlayers !== '' ||
+      complexityError.minComplexity !== '' || complexityError.maxComplexity !== '' ||
+      stringErrors.boardgameName !== '' || numberErrors.yearPublished !== '' ||
+      numberErrors.minAge !== '' || numberErrors.maxPlaytime !== '' ||
+      stringErrors.eventName !== '' || stringErrors.venueName !== '' ||
+      stringErrors.address !== '' || stringErrors.addressInfo !== '' ||
+      stringErrors.description !== '' || numberErrors.price !== '' ||
+      dateErrors.day !== '' || timeErrors.startHour !== '' || timeErrors.endHour !== '';
+  };
+
+
+   // UseEffect hooks for validation
+   useEffect(() => {
+    validatePlayers(filters.minPlayers, filters.maxPlayers);
+  }, [filters.minPlayers, filters.maxPlayers]);
+
+  useEffect(() => {
+    validateComplexity(filters.minComplexity, filters.maxComplexity);
+  }, [filters.minComplexity, filters.maxComplexity]);
+
+  useEffect(() => {
+    validateNumbers(form.price, filters.minAge, filters.maxPlaytime, filters.yearPublished);
+  }, [form.price, filters.minAge, filters.maxPlaytime, filters.yearPublished]);
+
+  useEffect(() => {
+    validateStringFields(form);
+  }, [form.eventName, form.venueName, form.address, form.addressInfo, form.description, filters.boardgameName]);
+
+  useEffect(() => {
+    validateDates(form.day);
+  }, [form.day]);
+
+  useEffect(() => {
+    validateTimes(form.startHour, form.endHour);
+  }, [form.startHour, form.endHour]);
+
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -275,29 +692,56 @@ export default function EventUpdate() {
 
   const validate = () => {
     const newErr = {};
-    if (!form.eventName) newErr.eventName = 'Event Name required';
+    ['eventName', 'description', 'venueName', 'addressInfo', 'address'].forEach(field => {
+      const error = validateField(field, form[field]);
+      if (error) newErr[field] = error;
+    });
+
+    // Price validation
+    if (form.price) {
+      const error = validateField('price', form.price);
+      if (error) newErr.price = error;
+    }
     
+    // Date validation
     if (!form.day) {
-      newErr.day = 'Day required';
+      newErr.day = 'Event date is required';
     } else if (isDateInPastOrToday(form.day)) {
-      newErr.day = 'Date must be in the future';
+      newErr.day = 'Date must be in the future (after today)';
+    } else {
+      const maxDate = dayjs('2025-12-31');
+      if (form.day.isAfter(maxDate)) {
+        newErr.day = 'Date cannot be after December 31, 2025';
+      }
     }
     
     if (!form.startHour) {
-      newErr.startHour = 'Start Hour required';
+      newErr.startHour = 'Start time is required';
     }
     
     if (!form.endHour) {
-      newErr.endHour = 'End Hour required';
+      newErr.endHour = 'End time is required';
     } else if (form.startHour && isEndTimeBeforeStartTime(form.startHour, form.endHour)) {
-      newErr.endHour = 'End Hour must be after Start Hour';
+      const startTimeStr = form.startHour.format('HH:mm');
+      newErr.endHour = `End time must be after start time (${startTimeStr}). Please select a time after ${startTimeStr}.`;
+    } else if (form.startHour && form.endHour) {
+      const duration = form.endHour.diff(form.startHour, 'hours', true);
+      if (duration > 12) {
+        newErr.endHour = 'Event duration cannot exceed 12 hours';
+      }
     }
     
-    if (!form.participants) newErr.participants = 'Participants required';
-    if (!form.city) newErr.city = 'City required';
-    if (!form.venueName && !form.address) newErr.address = 'Venue name or address required';
-    if (!markerPos) newErr.map = 'Please select a valid location';
-    if (!form.description) newErr.description = 'Description required';
+    if (!form.participants) newErr.participants = 'Number of participants is required';
+    if (!form.city) newErr.city = 'City is required';
+    
+    if (!form.venueName && !form.address) {
+      newErr.address = 'Either venue name or address is required';
+    }
+    
+    // Map location validation
+    if (!markerPos) {
+      newErr.map = 'Please select a location on the map or search for an address';
+    }
     
     setErrors(newErr);
     return Object.keys(newErr).length === 0;
@@ -308,10 +752,50 @@ export default function EventUpdate() {
     
     const place = autoRef.current.getPlace();
     if (!place || !place.geometry || !place.geometry.location) {
-      setErrors(prev => ({ ...prev, address: 'Please select a valid address' }));
-      return;
+      setErrors(prev => ({ ...prev, address: 'Please select a valid address from the suggestions' }));
+      setAddressSelected(false);
+            return;
     }
     
+      // Extract city from address components
+      const cityComponent = place.address_components?.find(
+        component => component.types.includes('locality') || 
+                    component.types.includes('administrative_area_level_1')
+      );
+      
+      const selectedCity = cityComponent?.long_name;
+      
+      // Check if city is allowed
+      const isCityAllowed = cityOptions.some(city => 
+        selectedCity?.toLowerCase().includes(city.toLowerCase()) ||
+        place.formatted_address.toLowerCase().includes(city.toLowerCase())
+      );
+      
+      if (!isCityAllowed) {
+        setErrors(prev => ({
+          ...prev,
+          address: 'Address must be from București, Cluj-Napoca, or Timișoara'
+        }));
+        setAddressSelected(false);
+        return;
+      }
+  
+      // Check address with form city
+      if (form.city) {
+        const isFromSelectedCity = 
+          selectedCity?.toLowerCase().includes(form.city.toLowerCase()) ||
+          place.formatted_address.toLowerCase().includes(form.city.toLowerCase()) ||
+          form.city.toLowerCase().includes(selectedCity?.toLowerCase() || '');
+        
+        if (!isFromSelectedCity) {
+          setErrors(prev => ({
+            ...prev,
+            address: `Please select an address from ${form.city}. The selected address appears to be from a different city.`
+          }));
+          setAddressSelected(false);
+          return;
+        }
+      }
     const lat = place.geometry.location.lat();
     const lng = place.geometry.location.lng();
     const newPos = { lat, lng };
@@ -325,7 +809,7 @@ export default function EventUpdate() {
     }
     
     setForm(prev => ({ ...prev, address: place.formatted_address }));
-    setErrors(e => ({ ...e, address: undefined, map: undefined }));
+    setErrors(prev => ({ ...prev, address: '', map: '' }));
   };
 
   const handleMapClick = async (e) => {
@@ -334,15 +818,42 @@ export default function EventUpdate() {
       lng: e.latLng.lng() 
     };
     setMarkerPos(newPos);
-    setErrors(prev => ({ ...prev, map: undefined }));
+    setErrors(prev => ({ ...prev, map: '', address: '' }));
     
     setLoadingAddress(true);
-    try {
+
+     try {
       const result = await reverseGeocode(newPos.lat, newPos.lng);
+      
+      if (form.city) {
+        const isInSelectedCity = cityOptions.some(city => 
+          result.formattedAddress.toLowerCase().includes(city.toLowerCase()) &&
+          (city.toLowerCase().includes(form.city.toLowerCase()) || 
+           form.city.toLowerCase().includes(city.toLowerCase()))
+        );
+        
+        if (!isInSelectedCity) {
+          setErrors(prev => ({
+            ...prev,
+            map: `Please select a location within ${form.city}. The clicked location appears to be outside the selected city.`,
+            address: `Location must be in ${form.city}`
+          }));
+          setLoadingAddress(false);
+          return;
+        }
+      }
+      setMarkerPos(newPos);
+      setAddressSelected(true);
       setForm(prev => ({ ...prev, address: result.formattedAddress }));
-      setErrors(prev => ({ ...prev, address: undefined }));
+      setErrors(prev => ({ ...prev, map: '', address: '' }));
+      
     } catch (error) {
       console.error("Error getting address:", error);
+      setErrors(prev => ({
+        ...prev,
+        map: 'Failed to get address for this location. Please try another location.',
+        address: 'Failed to get address'
+      }));
     } finally {
       setLoadingAddress(false);
     }
@@ -359,7 +870,8 @@ export default function EventUpdate() {
     }));
     
     setMarkerPos(null);
-    
+    setAddressSelected(false);
+
     if (CITY_COORDINATES[city]) {
       setMapCenter(CITY_COORDINATES[city]);
       if (mapRef.current) {
@@ -381,21 +893,9 @@ export default function EventUpdate() {
     try {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
-      const individualMechanics = getIndividualMechanicsFromCategories(selectedMechanicCategories);
 
-      const filters = {
-        name: boardgameName || null,
-        minPlayers: minPlayers ? Number(minPlayers) : null,
-        maxPlayers: maxPlayers ? Number(maxPlayers) : null,
-        minAge: minAge ? Number(minAge) : null,
-        maxPlaytime: maxPlaytime ? Number(maxPlaytime) : null,
-        minComplexity: minComplexity ? parseFloat(minComplexity) : null,
-        maxComplexity: maxComplexity ? parseFloat(maxComplexity) : null,
-        mechanics: individualMechanics.length ? individualMechanics : null,
-        domains: selectedDomains.length ? selectedDomains : null,
-        yearPublished: yearPublished ? Number(yearPublished) : null,
-      };
-      
+      const searchFilters = createSearchParams(filters);
+
       const url = `http://localhost:9013/boardgames/search?page=${page}&size=${size}`;
       const response = await fetch(url, {
         method: "POST",
@@ -403,7 +903,7 @@ export default function EventUpdate() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(filters),
+        body: JSON.stringify(searchFilters),
       });
       
       if (!response.ok) {
@@ -433,16 +933,13 @@ export default function EventUpdate() {
   };
   
   const handleClearSearch = () => {
-    setBoardgameName("");
-    setMinPlayers("");
-    setMaxPlayers("");
-    setMinAge("");
-    setMaxPlaytime("");
-    setMinComplexity("");
-    setMaxComplexity("");
-    setSelectedMechanicCategories([]);
-    setSelectedDomains([]);
-    setYearPublished("");
+
+    setStringErrors(prev => ({ ...prev, boardgameName: '' }));
+    setNumberErrors(prev => ({ ...prev, yearPublished: '', minAge: '', maxPlaytime: '' }));
+    setPlayersError({ minPlayers: '', maxPlayers: '' });
+    setComplexityError({ minComplexity: '', maxComplexity: '' });
+    setFilters(defaultFilters);
+
     setPageNumber(1);
     setSearchResults([]);
   };
@@ -469,6 +966,7 @@ export default function EventUpdate() {
   const handleUpdate = async () => {
     if (!validate()) {
       setTabValue(0);
+      setSubmitError('Please fix all validation errors before submitting.');
       return;
     }
 
@@ -530,7 +1028,20 @@ export default function EventUpdate() {
 
   const shouldDisableDate = (date) => {
     const today = dayjs().startOf('day');
-    return date.isSame(today) || date.isBefore(today);
+    const maxDate = dayjs('2025-12-31');
+    return date.isSame(today) || date.isBefore(today) || date.isAfter(maxDate);
+  };
+
+  const isFormValid = () => {
+    const hasValidationErrors = hasErrors();
+    const requiredFields = ['eventName', 'day', 'startHour', 'endHour', 'participants','venueName', 'city', 'description', 'address'];
+    const hasAllRequired = requiredFields.every(field => 
+      form[field] && form[field].toString().trim() !== ''
+    );
+    const hasMapLocation = markerPos !== null;
+    const hasValidAddress = addressSelected; 
+    
+    return !hasValidationErrors && hasAllRequired && hasMapLocation && hasValidAddress;
   };
 
   if (loading) {
@@ -641,10 +1152,21 @@ export default function EventUpdate() {
                     <TextField 
                       required 
                       value={form.eventName} 
-                      onChange={e => setForm(f => ({ ...f, eventName: e.target.value }))} 
+                      onChange={e => handleFieldChange('eventName', e.target.value)}
                       sx={wideStyle} 
                       error={!!errors.eventName} 
-                      helperText={errors.eventName} 
+                      helperText={
+                        <Box>
+                          {stringErrors.eventName && <span>{stringErrors.eventName}</span>}
+                          <CharacterCounter 
+                            current={form.eventName.length} 
+                            max={50} 
+                            fieldName="eventName" 
+                          />
+                        </Box>
+                      }
+                      inputProps={{ maxLength: 60 }}
+                      placeholder="Enter event name..."
                     />
                   </Grid>
                   <Grid item xs={12} md={3}>
@@ -652,15 +1174,15 @@ export default function EventUpdate() {
                     <LocalizationProvider dateAdapter={AdapterDayjs}>
                       <DatePicker 
                         value={form.day} 
-                        onChange={v => setForm(f => ({ ...f, day: v }))} 
+                        onChange={v => handleFieldChange('day', v)}
+                        shouldDisableDate={shouldDisableDate}
                         slotProps={{ 
                           textField: { 
                             sx: inputStyle, 
                             error: !!errors.day, 
-                            helperText: errors.day 
+                            helperText: dateErrors.day || "Must be between tomorrow and Dec 31, 2025"
                           } 
                         }}
-                        shouldDisableDate={shouldDisableDate}
                       />
                     </LocalizationProvider>
                   </Grid>
@@ -697,9 +1219,8 @@ export default function EventUpdate() {
                         slotProps={{ 
                           textField: { 
                             sx: inputStyle, 
-                            error: !!errors.endHour, 
-                            helperText: errors.endHour 
-                          } 
+                            error: !!timeErrors.endHour, 
+                            helperText: timeErrors.endHour || (form.startHour ? "Must be after start time" : "Select start time first")                          } 
                         }}
                         disabled={!form.startHour}
                         minTime={form.startHour}
@@ -728,26 +1249,40 @@ export default function EventUpdate() {
                     <TextField
                       type="number"
                       value={form.price}
-                      onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                      onChange={e => handleFieldChange('price', e.target.value)}
                       sx={inputStyle}
-                      InputProps={{ inputProps: { min: 0 } }}
+                      error={!!numberErrors.price}
+                      helperText={numberErrors.price || "Leave empty for free events"}
+                      InputProps={{ 
+                        inputProps: { min: 0, max: 10000, step: 1 }
+                      }}
                       placeholder="Leave empty for free events"
                     />
                   </Grid>
                 </Grid>
                 
                 <Box mt={4}>
-                  <Typography mb={1}>Description</Typography>
+                  <Typography mb={1}>Description *</Typography>
                   <TextField 
                     required
                     multiline 
                     rows={6}
                     fullWidth
                     value={form.description} 
-                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))} 
-                    placeholder="Provide a detailed description of your event"
-                    error={!!errors.description}
-                    helperText={errors.description}
+                    onChange={e => handleFieldChange('description', e.target.value)}
+                    placeholder="Provide a detailed description of your event (10-500 characters)"
+                    error={!!stringErrors.description}
+                    helperText={
+                      <Box>
+                        {stringErrors.description && <span>{stringErrors.description}</span>}
+                        <CharacterCounter 
+                          current={form.description.length} 
+                          max={500} 
+                          fieldName="description" 
+                        />
+                      </Box>
+                    }
+                    inputProps={{ maxLength: 500 }}
                     sx={{
                       width: '100%',
                       '& .MuiOutlinedInput-root': {
@@ -768,7 +1303,7 @@ export default function EventUpdate() {
                   <Grid item xs={12} md={6}>
                     <Typography mb={1}>City</Typography>
                     <FormControl required sx={inputStyle} error={!!errors.city}>
-                      <InputLabel>City</InputLabel>
+                      <InputLabel>City *</InputLabel>
                       <Select 
                         value={form.city} 
                         onChange={handleCityChange} 
@@ -781,31 +1316,63 @@ export default function EventUpdate() {
                       {errors.city && <FormHelperText>{errors.city}</FormHelperText>}
                     </FormControl>
 
-                    <Typography mb={1} mt={2}>Venue Name</Typography>
+                    <Typography mb={1} mt={2}>Venue Name *</Typography>
                     <TextField 
                       value={form.venueName} 
-                      onChange={e => setForm(f => ({ ...f, venueName: e.target.value }))} 
-                      sx={wideStyle} 
-                      error={!!errors.address && !form.address} 
+                      required
+                      onChange={e => handleFieldChange('venueName', e.target.value)}
+                      error={!!stringErrors.venueName}
+                      helperText={
+                        <Box>
+                          {stringErrors.venueName && <span>{stringErrors.venueName}</span>}
+                          <CharacterCounter 
+                            current={form.venueName.length} 
+                            max={50} 
+                            fieldName="venueName" 
+                          />
+                        </Box>
+                      }
+                      inputProps={{ maxLength: 60 }}
+                      placeholder="Enter venue name..."
                     />
 
-                    <Typography mb={1} mt={2}>Address</Typography>
+                    <Typography mb={1} mt={2}>Address *</Typography>
                     <Box sx={{ position: 'relative' }}>
                       <Autocomplete 
                         onLoad={ref => (autoRef.current = ref)} 
                         onPlaceChanged={onPlaceChanged} 
                         options={{ 
                           componentRestrictions: { country: 'ro' }, 
-                          fields: ['formatted_address', 'geometry'] 
+                          fields: ['formatted_address', 'geometry', 'address_components'],
+                          ...(form.city && CITY_COORDINATES[form.city] && {
+                            location: new window.google.maps.LatLng(
+                              CITY_COORDINATES[form.city].lat, 
+                              CITY_COORDINATES[form.city].lng
+                            ),
+                            radius: 20000
+                          })
                         }}
                       >
-                        <TextField 
+                        <TextField
+                          required
                           value={form.address} 
-                          onChange={e => setForm(f => ({ ...f, address: e.target.value }))} 
+                          onChange={e => {
+                            setForm(f => ({ ...f, address: e.target.value }));
+                            setTimeout(() => {
+                              if (!addressSelected && e.target.value.trim() !== '') {
+                                setAddressSelected(false);
+                                setMarkerPos(null);
+                                setErrors(prev => ({
+                                  ...prev,
+                                  address: 'Please select an address from the suggestions'
+                                }));
+                              }
+                            }, 100);
+                          }}
                           sx={wideStyle} 
-                          error={!!errors.address && !form.venueName} 
-                          helperText={errors.address} 
-                          placeholder="Search for address"
+                          error={!!stringErrors.address}
+                          helperText={stringErrors.address || `Search for an address in ${form.city || 'Bucuresti, Cluj-Napoca, or Timisoara'}`}
+                          placeholder="Type to search for address..."
                         />
                       </Autocomplete>
                       {loadingAddress && (
@@ -821,14 +1388,26 @@ export default function EventUpdate() {
                       )}
                     </Box>
 
-                    <Typography mb={1} mt={2}>Address Information (optional)</Typography>
+                    <Typography mb={1} mt={2}>Additional Address Info</Typography>
                     <TextField 
                       multiline 
                       rows={3} 
                       fullWidth 
                       value={form.addressInfo} 
-                      onChange={e => setForm(f => ({ ...f, addressInfo: e.target.value }))} 
-                      placeholder="Additional details like floor, entrance, etc."
+                      onChange={e => handleFieldChange('addressInfo', e.target.value)}
+                      placeholder="Floor, entrance, parking instructions, etc. (max 200 chars)"
+                      error={!!stringErrors.addressInfo}
+                      helperText={
+                        <Box>
+                          {stringErrors.addressInfo && <span>{stringErrors.addressInfo}</span>}
+                          <CharacterCounter 
+                            current={form.addressInfo.length} 
+                            max={200} 
+                            fieldName="addressInfo" 
+                          />
+                        </Box>
+                      }
+                      inputProps={{ maxLength: 200 }}
                     />
                   </Grid>
 
@@ -860,8 +1439,8 @@ export default function EventUpdate() {
                       </GoogleMap>
                     </Box>
                     {errors.map && (
-                      <FormHelperText error>{errors.map}</FormHelperText>
-                    )}
+                      <FormHelperText error sx={{ mt: 1 }}>{errors.map}</FormHelperText>
+                      )}
                   </Grid>
                 </Grid>
               </CardContent>
@@ -957,11 +1536,13 @@ export default function EventUpdate() {
                       label="Boardgame Name"
                       fullWidth
                       size="small"
-                      value={boardgameName}
-                      onChange={(e) => setBoardgameName(e.target.value)}
-                      InputProps={{
-                        startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />
-                      }}
+                      value={filters.boardgameName}
+                      onChange={(e) => setFilters({ ...filters, boardgameName: e.target.value })}
+                      error={!!stringErrors.boardgameName}
+                      helperText={stringErrors.boardgameName || ""}
+                      // InputProps={{
+                      //   startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />
+                      // }}
                     />
                   </Grid>
                   <Grid item xs={12} md={2}>
@@ -969,8 +1550,10 @@ export default function EventUpdate() {
                       label="Min Players"
                       fullWidth
                       size="small"
-                      value={minPlayers}
-                      onChange={(e) => setMinPlayers(e.target.value)}
+                      error={!!playersError.minPlayers}
+                      helperText={playersError.minPlayers || ""}
+                      value={filters.minPlayers}
+                      onChange={(e) => setFilters({ ...filters, minPlayers: e.target.value })}
                     />
                   </Grid>
                   <Grid item xs={12} md={2}>
@@ -978,8 +1561,10 @@ export default function EventUpdate() {
                       label="Max Players"
                       fullWidth
                       size="small"
-                      value={maxPlayers}
-                      onChange={(e) => setMaxPlayers(e.target.value)}
+                      error={!!playersError.maxPlayers}
+                      helperText={playersError.maxPlayers || ""}
+                      value={filters.maxPlayers}
+                      onChange={(e) => setFilters({ ...filters, maxPlayers: e.target.value })}
                     />
                   </Grid>
                   <Grid item xs={12} md={2}>
@@ -987,8 +1572,10 @@ export default function EventUpdate() {
                       label="Year Published"
                       fullWidth
                       size="small"
-                      value={yearPublished}
-                      onChange={(e) => setYearPublished(e.target.value)}
+                      value={filters.yearPublished}
+                      error={!!numberErrors.yearPublished}
+                      helperText={numberErrors.yearPublished || ""}
+                      onChange={(e) => setFilters({ ...filters, yearPublished: e.target.value })}
                     />
                   </Grid>
                 </Grid>
@@ -1023,8 +1610,10 @@ export default function EventUpdate() {
                           label="Min Age"
                           fullWidth
                           size="small"
-                          value={minAge}
-                          onChange={(e) => setMinAge(e.target.value)}
+                          error={!!numberErrors.minAge}
+                          helperText={numberErrors.minAge || ""}
+                          value={filters.minAge}
+                          onChange={(e) => setFilters({ ...filters, minAge: e.target.value })}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
@@ -1032,8 +1621,10 @@ export default function EventUpdate() {
                           label="Max Playtime"
                           fullWidth
                           size="small"
-                          value={maxPlaytime}
-                          onChange={(e) => setMaxPlaytime(e.target.value)}
+                          error={!!numberErrors.maxPlaytime}
+                          helperText={numberErrors.maxPlaytime || ""}
+                          value={filters.maxPlaytime}
+                          onChange={(e) => setFilters({ ...filters, maxPlaytime: e.target.value })}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
@@ -1042,8 +1633,10 @@ export default function EventUpdate() {
                           fullWidth
                           size="small"
                           inputProps={{ step: "0.1" }}
-                          value={minComplexity}
-                          onChange={(e) => setMinComplexity(e.target.value)}
+                          error={!!complexityError.minComplexity}
+                      helperText={complexityError.minComplexity || ""}
+                      value={filters.minComplexity}
+                      onChange={(e) => setFilters({ ...filters, minComplexity: e.target.value })}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
@@ -1052,8 +1645,10 @@ export default function EventUpdate() {
                           fullWidth
                           size="small"
                           inputProps={{ step: "0.1" }}
-                          value={maxComplexity}
-                          onChange={(e) => setMaxComplexity(e.target.value)}
+                          error={!!complexityError.maxComplexity}
+                      helperText={complexityError.maxComplexity || ""}
+                      value={filters.maxComplexity}
+                      onChange={(e) => setFilters({ ...filters, maxComplexity: e.target.value })}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -1063,15 +1658,15 @@ export default function EventUpdate() {
                             labelId="mechanics-label"
                             label="Mechanics"
                             multiple
-                            value={selectedMechanicCategories}
-                            onChange={(e) => setSelectedMechanicCategories(e.target.value)}
+                            value={filters.mechanics}
+                            onChange={(e) => setFilters({ ...filters, mechanics: e.target.value })}
                             input={<OutlinedInput label="Mechanics" />}
                             renderValue={(selected) => selected.join(", ")}
                             sx={{ minWidth: 200 }}
                           >
                             {mechanicCategoryOptions.map((category) => (
                               <MenuItem key={category} value={category}>
-                                <Checkbox checked={selectedMechanicCategories.indexOf(category) > -1} />
+                                <Checkbox checked={filters.mechanics.indexOf(category) > -1} />
                                 <ListItemText primary={category} />
                               </MenuItem>
                             ))}
@@ -1085,15 +1680,15 @@ export default function EventUpdate() {
                             labelId="domains-label"
                             label="Domains"
                             multiple
-                            value={selectedDomains}
-                            onChange={(e) => setSelectedDomains(e.target.value)}
+                            value={filters.domains}
+                            onChange={(e) => setFilters({ ...filters, domains: e.target.value })}
                             input={<OutlinedInput label="Domains" />}
                             renderValue={(selected) => selected.join(", ")}
                             sx={{ minWidth: 200 }}
                           >
                             {domainOptions.map((domain) => (
                               <MenuItem key={domain} value={domain}>
-                                <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
+                                <Checkbox checked={filters.domains.indexOf(domain) > -1} />
                                 <ListItemText primary={domain} />
                               </MenuItem>
                             ))}
@@ -1108,7 +1703,7 @@ export default function EventUpdate() {
                   <Button 
                     variant="contained" 
                     onClick={() => handleSearch(1)} 
-                    disabled={loadingSearch}
+                    disabled={hasErrors() || loadingSearch}
                     startIcon={<SearchIcon />}
                   >
                     {loadingSearch ? <CircularProgress size={24} color="inherit" /> : "Search"}
@@ -1251,6 +1846,11 @@ export default function EventUpdate() {
         </Paper>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', maxWidth: 1000, mx: 'auto' }}>
+        {!isFormValid() && (
+            <Typography variant="body2" color="text.secondary">
+              Complete all required fields to continue
+            </Typography>
+          )}
           <Button 
             variant="outlined" 
             onClick={() => navigate(`/events/${eventId}`)}
@@ -1261,7 +1861,7 @@ export default function EventUpdate() {
           <Button 
             variant="contained" 
             onClick={handleUpdate}
-            disabled={!mapLoaded || isSubmitting}
+            disabled={ !isFormValid() || !mapLoaded || isSubmitting}
           >
             {isSubmitting ? (
               <>

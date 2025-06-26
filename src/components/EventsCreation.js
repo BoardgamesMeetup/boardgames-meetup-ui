@@ -31,7 +31,7 @@ import { useLoadScript } from '@react-google-maps/api';
 import { Add, Remove, Schedule, CheckCircle } from '@mui/icons-material';
 import ClockTimePicker from './ClockTimePicker';
 
-const cityOptions = ['Cluj', 'Bucuresti', 'Timisoara'];
+const cityOptions = ['Cluj-Napoca', 'București', 'Timișoara'];
 const participantsOptions = [10, 20, 30, 40, 50];
 
 // Validation rules
@@ -40,18 +40,25 @@ const validationRules = {
     required: true,
     maxLength: 50,
     pattern: /^[a-zA-Z0-9\s\-.,!?'&]+$/,
-    message: 'Event name must be 1-50 characters, letters/numbers/basic punctuation only'
+    message: 'Event name must be 3-50 characters, letters/numbers/basic punctuation only'
   },
   venueName: {
+    required: true,
     maxLength: 50,
     pattern: /^[a-zA-Z0-9\s\-.,&']+$/,
-    message: 'Venue name must be max 50 characters'
+    message: 'Venue name must be 3-50 characters'
   },
   description: {
     required: true,
     maxLength: 500,
     minLength: 10,
     message: 'Description must be 10-500 characters'
+  },
+  address: {
+    required: true,
+    maxLength: 100,
+    minLength: 10,
+    message: 'Address must be 10-100 characters'
   },
   addressInfo: {
     maxLength: 200,
@@ -220,13 +227,18 @@ export default function EventsCreation() {
     const rule = validationRules[fieldName];
     if (!rule) return '';
 
-    // Required validation
+    // Required validation strings
     if (rule.required && (!value || value.toString().trim() === '')) {
       return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
     }
 
+    if (value && value.toString().trim().length > 0 && value.toString().trim().length < 3) {
+      return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} must be at least 3 characters`;
+    }
+
     // Skip other validations if field is empty and not required
-    if (!value || value.toString().trim() === '') return '';
+    if (!rule.required && (!value || value.toString().trim() === '')){ 
+      return ''};
 
     // Min length validation
     if (rule.minLength && value.length < rule.minLength) {
@@ -271,7 +283,7 @@ export default function EventsCreation() {
 
   useEffect(() => {
     console.log('EventsCreation mounted');
-    setMapLoaded(false);
+    // setMapLoaded(false);
     setLoadingAddress(false);
     setIsSubmitting(false);
     setSubmitError('');
@@ -282,7 +294,7 @@ export default function EventsCreation() {
     
     autoRef.current = null;
     mapRef.current = null;
-  }, [location.pathname]);
+  }, []);
 
   useEffect(() => {
     if (form.city && CITY_COORDINATES[form.city]) {
@@ -309,7 +321,7 @@ export default function EventsCreation() {
     const newErr = {};
     
     // Text field validations
-    ['eventName', 'description', 'venueName', 'addressInfo'].forEach(field => {
+    ['eventName', 'description', 'venueName', 'addressInfo', 'address'].forEach(field => {
       const error = validateField(field, form[field]);
       if (error) newErr[field] = error;
     });
@@ -381,7 +393,49 @@ export default function EventsCreation() {
       setAddressSelected(false);
       return;
     }
+
+    // Extract city from address components
+    const cityComponent = place.address_components?.find(
+      component => component.types.includes('locality') || 
+                  component.types.includes('administrative_area_level_1')
+    );
     
+    const selectedCity = cityComponent?.long_name;
+    
+    // Check if city is allowed
+    const isCityAllowed = cityOptions.some(city => 
+      selectedCity?.toLowerCase().includes(city.toLowerCase()) ||
+      place.formatted_address.toLowerCase().includes(city.toLowerCase())
+    );
+    
+    if (!isCityAllowed) {
+      // Set error and don't proceed
+      setErrors(prev => ({
+        ...prev,
+        address: 'Address must be from București, Cluj-Napoca, or Timișoara'
+      }));
+      setAddressSelected(false);
+      return;
+    }
+
+     // check address with form city
+  if (form.city) {
+    const isFromSelectedCity = 
+    selectedCity?.toLowerCase().includes(form.city.toLowerCase()) ||
+      place.formatted_address.toLowerCase().includes(form.city.toLowerCase()) ||
+      form.city.toLowerCase().includes(selectedCity?.toLowerCase() || '');
+    
+    if (!isFromSelectedCity) {
+      setErrors(prev => ({
+        ...prev,
+        address: `Please select an address from ${form.city}. The selected address appears to be from a different city.`
+      }));
+      setAddressSelected(false);
+      return;
+    }
+  }
+  
+    // If validation passes, proceed with your original logic
     const lat = place.geometry.location.lat();
     const lng = place.geometry.location.lng();
     const newPos = { lat, lng };
@@ -404,16 +458,43 @@ export default function EventsCreation() {
       lat: e.latLng.lat(), 
       lng: e.latLng.lng() 
     };
-    setMarkerPos(newPos);
-    setAddressSelected(true);
-    setErrors(prev => ({ ...prev, map: '', address: '' }));
     
     setLoadingAddress(true);
+    setErrors(prev => ({ ...prev, map: '', address: '' }));
+    
     try {
       const result = await reverseGeocode(newPos.lat, newPos.lng);
+      
+      if (form.city) {
+        const isInSelectedCity = cityOptions.some(city => 
+          result.formattedAddress.toLowerCase().includes(city.toLowerCase()) &&
+          (city.toLowerCase().includes(form.city.toLowerCase()) || 
+           form.city.toLowerCase().includes(city.toLowerCase()))
+        );
+        
+        if (!isInSelectedCity) {
+          setErrors(prev => ({
+            ...prev,
+            map: `Please select a location within ${form.city}. The clicked location appears to be outside the selected city.`,
+            address: `Location must be in ${form.city}`
+          }));
+          setLoadingAddress(false);
+          return;
+        }
+      }
+      
+      setMarkerPos(newPos);
+      setAddressSelected(true);
       setForm(prev => ({ ...prev, address: result.formattedAddress }));
+      setErrors(prev => ({ ...prev, map: '', address: '' }));
+      
     } catch (error) {
       console.error("Error getting address:", error);
+      setErrors(prev => ({
+        ...prev,
+        map: 'Failed to get address for this location. Please try another location.',
+        address: 'Failed to get address'
+      }));
     } finally {
       setLoadingAddress(false);
     }
@@ -509,17 +590,16 @@ export default function EventsCreation() {
     return date.isSame(today) || date.isBefore(today) || date.isAfter(maxDate);
   };
 
-  // Check if form is valid
   const isFormValid = () => {
     const hasErrors = Object.values(errors).some(error => error !== '');
-    const requiredFields = ['eventName', 'day', 'startHour', 'endHour', 'participants', 'city', 'description'];
+    const requiredFields = ['eventName', 'day', 'startHour', 'endHour', 'participants','venueName', 'city', 'description', 'address'];
     const hasAllRequired = requiredFields.every(field => 
       form[field] && form[field].toString().trim() !== ''
     );
-    const hasLocationOrVenue = form.venueName || (form.address && addressSelected);
     const hasMapLocation = markerPos !== null;
+    const hasValidAddress = addressSelected; 
     
-    return !hasErrors && hasAllRequired && (hasLocationOrVenue || hasMapLocation);
+    return !hasErrors && hasAllRequired && hasMapLocation && hasValidAddress;
   };
 
   if (loadError) {
@@ -716,7 +796,7 @@ export default function EventsCreation() {
                   />
                 </Box>
               }
-              inputProps={{ maxLength: 510 }}
+              inputProps={{ maxLength: 500 }}
               sx={{
                 width: '100%',
                 '& .MuiOutlinedInput-root': {
@@ -750,8 +830,9 @@ export default function EventsCreation() {
                 {errors.city && <FormHelperText>{errors.city}</FormHelperText>}
               </FormControl>
 
-              <Typography mb={1} mt={2}>Venue Name</Typography>
+              <Typography mb={1} mt={2}>Venue Name *</Typography>
               <TextField 
+                required
                 value={form.venueName} 
                 onChange={e => handleFieldChange('venueName', e.target.value)}
                 sx={wideStyle} 
@@ -770,22 +851,43 @@ export default function EventsCreation() {
                 placeholder="Enter venue name..."
               />
 
-              <Typography mb={1} mt={2}>Address</Typography>
+              <Typography mb={1} mt={2}>Address *</Typography>
               <Box sx={{ position: 'relative' }}>
                 <Autocomplete 
                   onLoad={ref => (autoRef.current = ref)} 
                   onPlaceChanged={onPlaceChanged} 
                   options={{ 
                     componentRestrictions: { country: 'ro' }, 
-                    fields: ['formatted_address', 'geometry'] 
+                    fields: ['formatted_address', 'geometry', 'address_components'],
+                    // Add location bias to prefer results from selected city
+                    ...(form.city && CITY_COORDINATES[form.city] && {
+                      location: new window.google.maps.LatLng(
+                        CITY_COORDINATES[form.city].lat, 
+                        CITY_COORDINATES[form.city].lng
+                      ),
+                      radius: 20000 // 20km radius
+                    })
                   }}
                 >
                   <TextField 
+                  required
                     value={form.address} 
-                    onChange={e => setForm(f => ({ ...f, address: e.target.value }))} 
+                    onChange={e => {
+                      setForm(f => ({ ...f, address: e.target.value }));
+                      setTimeout(() => {
+                        if (!addressSelected && e.target.value.trim() !== '') {
+                          setAddressSelected(false);
+                          setMarkerPos(null);
+                          setErrors(prev => ({
+                            ...prev,
+                            address: 'Please select an address from the suggestions'
+                          }));
+                        }
+                      }, 100);
+                  }} 
                     sx={wideStyle} 
                     error={!!errors.address}
-                    helperText={errors.address || "Search for an address or click on the map"}
+                    helperText={errors.address || `Search for an address in ${form.city || 'Bucuresti, Cluj-Napoca, or Timisoara'}`}
                     placeholder="Type to search for address..."
                     InputProps={{
                       endAdornment: (
@@ -889,7 +991,6 @@ export default function EventsCreation() {
         >
           Cancel
         </Button>
-        
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {!isFormValid() && (
             <Typography variant="body2" color="text.secondary">

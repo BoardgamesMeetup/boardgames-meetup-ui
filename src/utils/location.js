@@ -1,9 +1,9 @@
 export const libraries = ['places'];
 
 export const CITY_COORDINATES = {
-  'Cluj': { lat: 46.7712, lng: 23.6236 },
-  'Bucuresti': { lat: 44.4268, lng: 26.1025 },
-  'Timisoara': { lat: 45.7489, lng: 21.2087 }
+  'Cluj-Napoca': { lat: 46.7712, lng: 23.6236 },
+  'București': { lat: 44.4268, lng: 26.1025 },
+  'Timișoara': { lat: 45.7489, lng: 21.2087 }
 };
 
 export const ROMANIA_CENTER = { lat: 45.9443, lng: 25.0094 };

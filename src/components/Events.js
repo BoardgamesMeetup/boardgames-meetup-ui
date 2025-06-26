@@ -22,6 +22,10 @@ import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import InfoIcon from '@mui/icons-material/Info';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs from 'dayjs';
 
 const Events = () => {
   const navigate = useNavigate();
@@ -68,7 +72,14 @@ const Events = () => {
     minParticipants: '',
     maxParticipants: ''
   });
-  const [loading, setLoading] = useState(false);
+  const [stringErrors, setStringErrors] = useState({
+    title: '',
+    venueName: '',
+    boardgame: '',
+    address: '',
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
   const [stateRestored, setStateRestored] = useState(false);
   const [isShowingRecommendations, setIsShowingRecommendations] = useState(false);
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
@@ -132,7 +143,7 @@ const Events = () => {
       if (stateRestored) return;
 
       try {
-        setLoading(true);
+        setIsLoading(true);
         const session = await getSession();
         const token = session.getAccessToken().getJwtToken();
 
@@ -158,7 +169,7 @@ const Events = () => {
       } catch (error) {
         console.error('Error loading user or events:', error);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -208,6 +219,10 @@ const Events = () => {
   }, [filters.minParticipants, filters.maxParticipants]);
 
   useEffect(() => {
+    validateStringFields(filters);
+  }, [filters.title, filters.venueName, filters.address, filters.boardgame]);
+
+  useEffect(() => {
     const restoreSearchContext = () => {
       const savedSearchId = localStorage.getItem('currentSearchId');
       const searchTimestamp = localStorage.getItem('searchTimestamp');
@@ -227,6 +242,26 @@ const Events = () => {
 
     restoreSearchContext();
   }, []);
+
+  const validateStringFields = (fields) => {
+    const newErrors = {
+      title: '',
+      venueName: '',
+      address: '',
+      boardgame: ''
+    };
+    
+    const fieldsToValidate = ['title', 'venueName', 'address', 'boardgame'];
+    
+    fieldsToValidate.forEach(fieldName => {
+      const value = fields[fieldName].toString().trim() || '';
+      if (value.length > 0 && value.length < 3) {
+        newErrors[fieldName] = `${fieldName} must be at least 3 characters`;
+      }
+    });
+    
+    setStringErrors(newErrors);
+  };
 
   const validateDates = (fromDate, toDate) => {
     const today = new Date();
@@ -253,7 +288,7 @@ const Events = () => {
         }
       }
     }
-  
+
     if (toDate !== null && toDate !== '') {
       const toDateObj = new Date(toDate);
       if (toDateObj < minDate) {
@@ -278,7 +313,7 @@ const Events = () => {
 
   const getMaxDate = () => {
     return '2025-12-31';
-    };
+  };
 
 
   const validatePrices = (minPrice, maxPrice) => {
@@ -332,7 +367,9 @@ const Events = () => {
   const hasErrors = () => {
     return dateErrors.fromDate !== '' || dateErrors.toDate !== '' ||
       priceErrors.minPrice !== '' || priceErrors.maxPrice !== '' ||
-      participantErrors.minParticipants !== '' || participantErrors.maxParticipants !== '';
+      participantErrors.minParticipants !== '' || participantErrors.maxParticipants !== ''
+      || stringErrors.title !== '' || stringErrors.venueName !== '' || stringErrors.boardgame !== ''
+      || stringErrors.address !== '';
   };
 
   const isPlanner = user.groups?.includes('eventPlanner') || user.role === 'EVENT_PLANNER';
@@ -346,7 +383,7 @@ const Events = () => {
     if (searchFilters.venueName && searchFilters.venueName.trim()) {
       params.venueName = searchFilters.venueName.trim();
     }
-    if (searchFilters.city && searchFilters.city.trim()) {
+    if (searchFilters.city && searchFilters.city.trim() && searchFilters.city !== 'All Cities') {
       params.city = searchFilters.city.trim();
     }
     if (searchFilters.fromDate !== null && searchFilters.fromDate !== '') {
@@ -407,8 +444,9 @@ const Events = () => {
 
   async function searchEvents(searchFilters, page, size) {
     try {
-      setLoading(true);
+      setIsLoading(true);
       setIsShowingRecommendations(false);
+      setEvents([])
 
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
@@ -444,8 +482,17 @@ const Events = () => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Search failed: ${response.status} ${errorText}`);
+        if (response.status === 400) {
+          // Handle validation errors
+          const errorData = await response.json();
+          console.log("Field errors: ", errorData);
+          // handleValidationErrors(errorData);
+          throw new Error(`Search filters have errors`);
+
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return;
       }
 
       const results = await response.json();
@@ -484,18 +531,47 @@ const Events = () => {
         isLast: true
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }
+
+  // const handleValidationErrors = (errorData) => {
+  //   if (errorData.fieldErrors) {
+  //     setFieldErrors(errorData.fieldErrors);
+  //   }
+    
+  //   if (errorData.globalErrors && errorData.globalErrors.length > 0) {
+  //     setGlobalErrors(errorData.globalErrors);
+  //   }
+    
+  //   setShowErrorAlert(true);
+  // };
+
+  // const getFieldErrorText = (fieldName) => {
+  //   return fieldErrors[fieldName] || '';
+  // };
+
+  // const hasFieldError = (fieldName) => {
+  //   return !!fieldErrors[fieldName];
+  // };
+
+  // const hasAnyErrors = () => {
+  //   return Object.keys(fieldErrors).length > 0 || globalErrors.length > 0;
+  // };
+
+  // const getErrorCount = () => {
+  //   return Object.keys(fieldErrors).length + globalErrors.length;
+  // };
 
   const generateClientSearchId = () => {
     return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   };
 
-  async function getRecommendations(page = 1, size = 10) {
+  async function getRecommendations(page, size) {
     try {
       setRecommendationsLoading(true);
       setIsShowingRecommendations(true);
+      setEvents([])
 
       setCurrentSearchId(null);
       localStorage.removeItem('currentSearchId');
@@ -506,7 +582,7 @@ const Events = () => {
 
       const recommendationRequest = {};
 
-      if (filters.city && filters.city.trim()) {
+      if (filters.city && filters.city.trim() && filters.city !== 'All Cities') {
         recommendationRequest.city = filters.city.trim();
       }
 
@@ -638,6 +714,13 @@ const Events = () => {
       maxParticipants: ''
     });
 
+    setStringErrors({
+      title: '',
+      venueName: '',
+      boardgame: '',
+      address: ''
+    })
+
     setPageNumber(1);
     setPageSize(10);
     setIsShowingRecommendations(false);
@@ -655,7 +738,7 @@ const Events = () => {
     const newValue = event.target.value;
     console.log('From date changing from:', JSON.stringify(filters.fromDate), 'to:', JSON.stringify(newValue));
     setFilters(prevFilters => ({
-      ...prevFilters, 
+      ...prevFilters,
       fromDate: newValue === '' ? null : newValue
     }));
   };
@@ -664,7 +747,7 @@ const Events = () => {
     const newValue = event.target.value;
     console.log('To date changing from:', JSON.stringify(filters.toDate), 'to:', JSON.stringify(newValue));
     setFilters(prevFilters => ({
-      ...prevFilters, 
+      ...prevFilters,
       toDate: newValue === '' ? null : newValue
     }));
   };
@@ -702,9 +785,12 @@ const Events = () => {
               size="small"
               value={filters.title}
               onChange={(e) => setFilters({ ...filters, title: e.target.value })}
+              inputProps={{ maxLength: 50 }}
               InputProps={{
                 startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
               }}
+              error={!!stringErrors.title}
+              helperText={stringErrors.title || ""}
             />
           </Grid>
           <Grid item xs={12} md={6}>
@@ -714,9 +800,12 @@ const Events = () => {
               size="small"
               value={filters.venueName}
               onChange={(e) => setFilters({ ...filters, venueName: e.target.value })}
+              inputProps={{ maxLength: 50 }}
               InputProps={{
                 startAdornment: <HomeIcon color="action" sx={{ mr: 1 }} />,
               }}
+              error={!!stringErrors.venueName}
+              helperText={stringErrors.venueName || ""}
             />
           </Grid>
 
@@ -754,9 +843,12 @@ const Events = () => {
                 ...filters, boardgame
                   : e.target.value
               })}
+              inputProps={{ maxLength: 50 }}
               InputProps={{
                 startAdornment: <SportsEsportsIcon color="action" sx={{ mr: 1 }} />,
               }}
+              error={!!stringErrors.boardgame}
+              helperText={stringErrors.boardgame || ""}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -816,64 +908,81 @@ const Events = () => {
                   size="small"
                   value={filters.address}
                   onChange={(e) => setFilters({ ...filters, address: e.target.value })}
+                  inputProps={{ maxLength: 50 }}
                   InputProps={{
                     startAdornment: <LocationSearchingIcon color="action" sx={{ mr: 1 }} />,
                   }}
                   placeholder="Search in venue address"
+                  error={!!stringErrors.address}
+                  helperText={stringErrors.address || ""}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <TextField
-                  label="From Date"
-                  type="date"
-                  fullWidth
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.fromDate || ''}
-                  onChange={handleFromDateChange}
-                  error={!!dateErrors.fromDate}
-                  helperText={dateErrors.fromDate}
-                  InputProps={{
-                    startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { 
-                      min: getMinDate(),
-                      max: getMaxDate()
-                    },
-                    style: {
-                      // backgroundColor: filters.fromDate ? 'white' : '#f9fafb',
-                      opacity: filters.fromDate ? 1 : 0.7,
-                      color: filters.fromDate ? '#111827' : '#9ca3af'
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="To Date"
-                  type="date"
-                  fullWidth
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.toDate || ''} 
-                  onChange={handleToDateChange}
-                  error={!!dateErrors.toDate}
-                  helperText={dateErrors.toDate}
-                  InputProps={{
-                    startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { 
-                      min: filters.fromDate || getMinDate(),
-                      max: getMaxDate()
-                    },
-                    style: {
-                      // backgroundColor: filters.fromDate ? 'white' : '#f9fafb',
-                      opacity: filters.fromDate ? 1 : 0.7,
-                      color: filters.fromDate ? '#111827' : '#9ca3af'
-                    }
-                  }}
-                />
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="From Date"
+                    value={filters.fromDate ? dayjs(filters.fromDate) : null}
+                    onChange={(newValue) => {
+                      handleFromDateChange({
+                        target: {
+                          value: newValue ? newValue.format('YYYY-MM-DD') : ''
+                        }
+                      });
+                    }}
+                    minDate={dayjs(getMinDate())}
+                    maxDate={dayjs(getMaxDate())}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        error: !!dateErrors.fromDate,
+                        helperText: dateErrors.fromDate,
+                        InputProps: {
+                          // startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
+                          style: {
+                            opacity: filters.fromDate ? 1 : 0.7,
+                            color: filters.fromDate ? '#111827' : '#9ca3af'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </LocalizationProvider>
               </Grid>
 
+              <Grid item xs={12} md={6}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="To Date"
+                    value={filters.toDate ? dayjs(filters.toDate) : null}
+                    onChange={(newValue) => {
+                      handleToDateChange({
+                        target: {
+                          value: newValue ? newValue.format('YYYY-MM-DD') : ''
+                        }
+                      });
+                    }}
+                    minDate={filters.fromDate ? dayjs(filters.fromDate) : dayjs(getMinDate())}
+                    maxDate={dayjs(getMaxDate())}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        error: !!dateErrors.toDate,
+                        helperText: dateErrors.toDate,
+                        InputProps: {
+                          // startAdornment: <EventIcon color="action" sx={{ mr: 1 }} />,
+                          style: {
+                            opacity: filters.toDate ? 1 : 0.7,
+                            color: filters.toDate ? '#111827' : '#9ca3af'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </LocalizationProvider>
+              </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Min Price"
@@ -885,7 +994,7 @@ const Events = () => {
                   helperText={priceErrors.minPrice}
                   InputProps={{
                     startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { min: 0, step: 0.01 }
+                    inputProps: { maxLength: 5, min: 0, step: 0.01 }
                   }}
                   placeholder="0.00"
                 />
@@ -901,7 +1010,7 @@ const Events = () => {
                   helperText={priceErrors.maxPrice}
                   InputProps={{
                     startAdornment: <AttachMoneyIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { min: 0, step: 0.01 }
+                    inputProps: { maxLength: 5, min: 0, step: 0.01 }
                   }}
                   placeholder="0.00"
                 />
@@ -918,7 +1027,7 @@ const Events = () => {
                   helperText={participantErrors.minParticipants}
                   InputProps={{
                     startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { min: 0, step: 1 }
+                    inputProps: { maxLength: 5, min: 0, step: 1 }
                   }}
                   placeholder="0"
                 />
@@ -934,7 +1043,7 @@ const Events = () => {
                   helperText={participantErrors.maxParticipants}
                   InputProps={{
                     startAdornment: <PeopleIcon color="action" sx={{ mr: 1 }} />,
-                    inputProps: { min: 0, step: 1 }
+                    inputProps: { maxLength: 5, min: 0, step: 1 }
                   }}
                   placeholder="0"
                 />
@@ -962,9 +1071,9 @@ const Events = () => {
             variant="contained"
             onClick={handleSearchClick}
             startIcon={<SearchIcon />}
-            disabled={hasErrors() || loading}
+            disabled={hasErrors() || isLoading}
           >
-            {loading ? 'Searching...' : 'Search'}
+            {isLoading ? 'Searching...' : 'Search'}
           </Button>
           <Button
             variant="contained"
@@ -988,7 +1097,7 @@ const Events = () => {
             <Select
               value={pageSize}
               onChange={handlePageSizeChange}
-              disabled={loading || recommendationsLoading}
+              disabled={isLoading || recommendationsLoading}
               sx={{ height: 36 }}
             >
               {pageSizeOptions.map(option => (
@@ -1119,7 +1228,7 @@ const Events = () => {
             <Button
               variant="outlined"
               onClick={() => handlePageChange(null, pageNumber - 1)}
-              disabled={pageNumber <= 1 || loading || recommendationsLoading}
+              disabled={pageNumber <= 1 || isLoading || recommendationsLoading}
             >
               Previous
             </Button>
@@ -1129,7 +1238,7 @@ const Events = () => {
             <Button
               variant="outlined"
               onClick={() => handlePageChange(null, pageNumber + 1)}
-              disabled={pageNumber >= paginationInfo.totalPages || loading || recommendationsLoading}
+              disabled={pageNumber >= paginationInfo.totalPages || isLoading || recommendationsLoading}
             >
               Next
             </Button>
@@ -1138,7 +1247,7 @@ const Events = () => {
       ) : (
         <>
           {/* No results messages */}
-          {hasSearched && !loading && !recommendationsLoading && (
+          {hasSearched && !isLoading && !recommendationsLoading && (
             <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary" mb={2}>
                 {isShowingRecommendations ? 'No recommendations found' : 'No events found'}
@@ -1152,7 +1261,7 @@ const Events = () => {
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
                 <Button
                   variant="outlined"
-                  onClick={ 
+                  onClick={
                     handleClearFilters}
                   startIcon={<ClearIcon />}
                 >
@@ -1162,7 +1271,7 @@ const Events = () => {
                   <Button
                     variant="contained"
                     color="secondary"
-                    onClick={                
+                    onClick={
                       handleSuggestionsClick}
                     startIcon={<RecommendIcon />}
                   >
@@ -1171,7 +1280,7 @@ const Events = () => {
                 ) : (
                   <Button
                     variant="contained"
-                    onClick={             
+                    onClick={
                       handleSearchClick}
                     startIcon={<SearchIcon />}
                   >
@@ -1182,7 +1291,7 @@ const Events = () => {
             </Paper>
           )}
 
-          {!hasSearched && !loading && !recommendationsLoading && (
+          {!hasSearched && !isLoading && !recommendationsLoading && (
             <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 4, textAlign: 'center' }}>
               <Typography variant="body1" color="text.secondary">
                 Enter search criteria and click "Search" to find events or "Suggestions" to get personalized recommendations.
@@ -1190,7 +1299,7 @@ const Events = () => {
             </Paper>
           )}
 
-          {(loading || recommendationsLoading) && (
+          {(isLoading || recommendationsLoading) && (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4 }}>
               <Typography variant="h6">
                 {isShowingRecommendations ? 'Loading recommendations...' : 'Loading events...'}
