@@ -38,17 +38,6 @@ export default function EventBoardgames() {
   const [selectedBoardgames, setSelectedBoardgames] = useState([]);
   const [loadingSelected, setLoadingSelected] = useState(true);
   
-  // const [boardgameName, setBoardgameName] = useState("");
-  // const [minPlayers, setMinPlayers] = useState("");
-  // const [maxPlayers, setMaxPlayers] = useState("");
-  // const [minAge, setMinAge] = useState("");
-  // const [maxPlaytime, setMaxPlaytime] = useState("");
-  // const [minComplexity, setMinComplexity] = useState("");
-  // const [maxComplexity, setMaxComplexity] = useState("");
-  // const [selectedMechanicCategories, setSelectedMechanicCategories] = useState([]);
-  // const [selectedDomains, setSelectedDomains] = useState([]);
-  // const [yearPublished, setYearPublished] = useState("");
-  
   const [searchResults, setSearchResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);

@@ -11,9 +11,15 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  InputAdornment,
   DialogTitle,
-  Tooltip
+  Alert,
 } from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff
+} from '@mui/icons-material';
+
 import { useNavigate } from "react-router-dom";
 import { getSession, changePassword, deleteUser, updateEmail } from "../cognito"; 
 import { Link } from 'react-router-dom';
@@ -38,8 +44,14 @@ function UserProfile() {
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(""); // New state for password change errors
 
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -90,15 +102,29 @@ function UserProfile() {
     setOpenPasswordDialog(false);
     setOldPassword("");
     setNewPassword("");
+    setPasswordError(""); // Clear password error when closing dialog
   };
 
   const handleChangePassword = async () => {
+    setPasswordError(""); // Clear previous errors
     try {
       await changePassword(oldPassword, newPassword);
       alert("Password changed successfully!");
       handleClosePasswordDialog();
     } catch (err) {
-      setError(`Failed to change password: ${err.message}`);
+      // Handle specific error cases with user-friendly messages
+      let errorMessage = err.message || "Failed to change password";
+      
+      if (err.code === 'NotAuthorizedException' || 
+          err.message?.includes('Incorrect username or password')) {
+        errorMessage = "Incorrect current password";
+      } else if (err.code === 'InvalidPasswordException') {
+        errorMessage = "New password does not meet requirements";
+      } else if (err.code === 'LimitExceededException') {
+        errorMessage = "Too many attempts. Please try again later";
+      }
+      
+      setPasswordError(errorMessage);
     }
   };
 
@@ -175,20 +201,53 @@ function UserProfile() {
         <DialogContent>
           <TextField
             label="Old Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             fullWidth
             margin="normal"
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
+            required
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={handleTogglePasswordVisibility}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           <TextField
             label="New Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             fullWidth
             margin="normal"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            required
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={handleTogglePasswordVisibility}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
+          {passwordError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {passwordError}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClosePasswordDialog}>Cancel</Button>

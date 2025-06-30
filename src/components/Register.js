@@ -47,19 +47,76 @@ function Register() {
   const [modalMessage, setModalMessage] = useState('');
   const [isSuccessModal, setIsSuccessModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState('');
 
 
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const validateEmail = (email) => emailRegex.test(email);
+
+const validateField = (name, value) => {
+  let error = '';
+  
+  switch (name) {
+    case 'familyName':
+      if (!value || value.trim() === '') {
+        error = 'Family Name is required';
+      } else if (value.trim().length < 2) {
+        error = 'Family Name must be at least 2 characters';
+      }
+      break;
+    case 'givenName':
+      if (!value || value.trim() === '') {
+        error = 'Given Name is required';
+      } else if (value.trim().length < 2) {
+        error = 'Given Name must be at least 2 characters';
+      }
+      break;
+    case 'role':
+      if (!value) {
+        error = 'Please select a role';
+        setErrors(errors.role = error);
+      }
+      break;
+    default:
+      break;
+  }
+  
+  return error;
+};
+
   const handleChange = (e) => {
-    setFormData((prev) => ({
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'email') {
+      if (value && !validateEmail(value)) {
+        setErrors(prev => ({ ...prev, email: 'Invalid email' }));
+      } else {
+        setErrors(prev => ({ ...prev, email: '' }));
+      }
+    } else {
+        // Validate field
+    const error = validateField(name, value);
+    setErrors(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: error
     }));
+    }
   };
 
+  const isFormValid = formData.email &&
+    formData.familyName &&
+    formData.givenName &&
+    formData.role &&
+    validateEmail(formData.email) &&
+    !validateField('email', formData.email) &&
+    !validateField('familyName', formData.familyName) &&
+    !validateField('givenName', formData.givenName) &&
+    !validateField('role', formData.role);
 
 const handleModalClose = () => {
   setShowModal(false);
@@ -225,6 +282,8 @@ const handleModalClose = () => {
         value={formData.email}
         onChange={handleChange}
         required
+        error={!!errors.email}
+        helperText={errors.email}
       />
       <TextField
         label="Given Name"
@@ -232,6 +291,8 @@ const handleModalClose = () => {
         value={formData.givenName}
         onChange={handleChange}
         required
+        error={!!errors.givenName}
+        helperText={errors.givenName}
       />
       <TextField
         label="Family Name"
@@ -239,6 +300,8 @@ const handleModalClose = () => {
         value={formData.familyName}
         onChange={handleChange}
         required
+        error={!!errors.familyName}
+        helperText={errors.familyName}
       />
       <TextField
         select
@@ -246,6 +309,8 @@ const handleModalClose = () => {
         name="role"
         value={formData.role}
         onChange={handleChange}
+        error={!!errors.role}
+        helperText={errors.role}
       >
         {roles.map((option) => (
           <MenuItem key={option.value} value={option.value}>
@@ -296,7 +361,8 @@ const handleModalClose = () => {
       <Button
         variant="contained"
         onClick={handleRegister}
-        disabled={loading}
+        disabled={!isFormValid || loading}
+        className={isFormValid ? 'enabled-style' : 'disabled-style'}
       >
         {loading ? <CircularProgress size={24} /> : 'Register'}
       </Button>

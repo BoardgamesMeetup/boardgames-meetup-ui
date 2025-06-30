@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format, parse } from 'date-fns';
+import dayjs from 'dayjs';
 import {
   Container,
   Box,
@@ -70,8 +71,69 @@ const EventDetails = () => {
   const [isEventPlanner, setIsEventPlanner] = useState(false);
   const [ownerProfile, setOwnerProfile] = useState(null);
   const [ownerLoading, setOwnerLoading] = useState(false);
+  const [eventHasPassed, setEventHasPassed] = useState(false);
   const { eventId } = useParams();
+
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const hasEventPassed = (eventData) => {
+    if (!eventData.day || !eventData.startHour) {
+      return false;
+    }
+    
+    try {
+      const eventDateTime = dayjs(`${eventData.day} ${eventData.startHour}`);
+      const now = dayjs();
+      
+      return now.isAfter(eventDateTime);
+    } catch (error) {
+      console.error('Error parsing event date/time:', error);
+      return false; 
+    }
+  };
+
+  const getBackDestination = () => {
+    // Check if coming from homepage
+    if (location.state?.fromHomePage) {
+      return {
+        path: '/home',
+        state: { fromEventDetails: true },
+        label: 'BACK TO HOME'
+      };
+    }
+
+    // Check if coming from search results with search id
+    const searchId = searchParams.get('searchId');
+    if (searchId) {
+      return {
+        path: '/events/search',
+        state: { restoreSearchId: searchId },
+        label: 'BACK TO SEARCH RESULTS'
+      };
+    }
+
+    return {
+      path: '/events/search',
+      state: null,
+      label: 'BACK TO SEARCH RESULTS'
+    };
+  };
+
+  const handleBackNavigation = () => {
+    const destination = getBackDestination();
+    
+    if (destination.state) {
+      navigate(destination.path, { state: destination.state });
+    } else {
+      navigate(destination.path);
+    }
+    
+    console.log(`Navigating back to: ${destination.path}`, destination.state);
+  };
+
+  const backDestination = getBackDestination();
 
   useEffect(() => {
     const fetchUserProfileAndEventDetails = async () => {
@@ -106,6 +168,9 @@ const EventDetails = () => {
         const eventData = response.data;
         setEvent(eventData);
         
+        const hasPassed = hasEventPassed(eventData);
+        setEventHasPassed(hasPassed);
+
         if (eventData.owner) {
           fetchOwnerProfile(eventData.owner, token);
         }
@@ -364,8 +429,7 @@ const EventDetails = () => {
         <Container maxWidth="lg" sx={{ pt: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, ml: -1 }}>
             <Button
-              component={Link}
-              to="/events/search"
+              onClick={handleBackNavigation}
               startIcon={<ArrowBackIcon />}
               sx={{ 
                 fontWeight: 500, 
@@ -374,7 +438,7 @@ const EventDetails = () => {
                 fontSize: '1rem'
               }}
             >
-              BACK TO EVENTS
+              {backDestination.label}
             </Button>
           </Box>
           
@@ -401,6 +465,7 @@ const EventDetails = () => {
                   <Button
                     variant="contained"
                     color="primary"
+                    disabled={eventHasPassed}
                     onClick={handleEditEvent}
                     startIcon={<EditIcon />}
                     sx={{ py: 1 }}
@@ -412,9 +477,9 @@ const EventDetails = () => {
                     <Button
                       variant="outlined"
                       color="error"
+                      disabled={eventHasPassed || actionLoading}
                       onClick={handleWithdrawEvent}
                       startIcon={<CancelIcon />}
-                      disabled={actionLoading}
                       sx={{ py: 1 }}
                     >
                       WITHDRAW FROM EVENT
@@ -425,7 +490,7 @@ const EventDetails = () => {
                       color="primary"
                       onClick={handleJoinEvent}
                       startIcon={<AddIcon />}
-                      disabled={actionLoading || event.participantsIds.length >= event.maxParticipants}
+                      disabled={eventHasPassed || actionLoading || event.participantsIds.length >= event.maxParticipants}
                       sx={{ py: 1 }}
                     >
                       JOIN EVENT
@@ -437,6 +502,7 @@ const EventDetails = () => {
                   <Button
                     variant="outlined"
                     color="error"
+                    disabled={eventHasPassed}
                     onClick={() => setConfirmDialogOpen(true)}
                     startIcon={<DeleteIcon />}
                     sx={{ py: 1 }}
@@ -556,6 +622,7 @@ const EventDetails = () => {
                 <CardActions sx={{ px: 2, pb: 2 }}>
                   <Button
                     fullWidth
+                    disabled={eventHasPassed}
                     variant="contained"
                     color="primary"
                     href={createGoogleCalendarUrl()}
@@ -707,8 +774,11 @@ const EventDetails = () => {
                         WebkitBoxOrient: 'vertical',
                       }}
                     >
-                      {boardgames[activeStep].description || "No description available."}
-                    </Typography>
+ {boardgames[activeStep].description
+    ?.replace(/<br\s*\/?>/gi, '\n') // Replace <br> tags with \n
+    ?.replace(/<br><\/br>/gi, '\n') // Replace <br></br> with \n
+    || "No description available."
+  }                    </Typography>
                     
                     <Button 
                       variant="contained" 

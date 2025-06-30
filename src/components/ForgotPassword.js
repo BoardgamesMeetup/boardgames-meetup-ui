@@ -8,17 +8,27 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
+import {
+  Visibility,
+  VisibilityOff
+} from '@mui/icons-material';
 
 function ForgotPassword() {
   const [stage, setStage] = useState('REQUEST');
   const [username, setUsername] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
-
   const [modalMessage, setModalMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
@@ -47,8 +57,19 @@ function ForgotPassword() {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>Forgot Password</Typography>
+    <Box
+      sx={{
+        width: 400,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        mt: 5
+      }}
+    >
+      <Typography variant="h5" align="center">
+        Forgot Password
+      </Typography>
 
       {stage === 'REQUEST' && (
         <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} onSubmit={handleRequestReset}>
@@ -58,7 +79,9 @@ function ForgotPassword() {
             onChange={e => setUsername(e.target.value)}
             required
           />
-          <Button variant="contained" type="submit">Request Reset</Button>
+          <Button variant="contained" type="submit">
+            Request Reset
+          </Button>
         </Box>
       )}
 
@@ -72,17 +95,32 @@ function ForgotPassword() {
           />
           <TextField
             label="New Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             required
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={handleTogglePasswordVisibility}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
-          <Button variant="contained" type="submit">Confirm Reset</Button>
+          <Button variant="contained" type="submit">
+            Confirm Reset
+          </Button>
         </Box>
       )}
 
       {stage === 'DONE' && (
-        <Typography variant="body1">
+        <Typography variant="body1" align="center">
           Password reset complete. Proceed to <a href="/login">Login</a>.
         </Typography>
       )}

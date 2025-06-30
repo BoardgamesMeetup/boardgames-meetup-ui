@@ -342,8 +342,7 @@ function BoardgameProfile() {
                   </Typography>
                 </Box>
               </Grid>
-
-              {combinedData.complexityAverage && (
+              {combinedData.complexityAverage > 0 && (
                 <Grid item xs={6} sm={4} md={2.4}>
                   <Box>
                     <Typography variant="body2" color="text.secondary">Complexity</Typography>

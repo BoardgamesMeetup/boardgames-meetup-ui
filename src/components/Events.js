@@ -50,7 +50,7 @@ const Events = () => {
   const [filters, setFilters] = useState(defaultFilters);
   const [events, setEvents] = useState([]);
   const [user, setUser] = useState({ role: '', userId: '', groups: [] });
-
+  const [eventHasPassed, setEventHasPassed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paginationInfo, setPaginationInfo] = useState({
@@ -87,10 +87,26 @@ const Events = () => {
   const [expandedFilters, setExpandedFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const cityOptions = ['Cluj', 'Bucuresti', 'Timisoara'];
+  const cityOptions = ['Cluj-Napoca', 'București', 'Timișoara'];
   const availabilityOptions = ['Available Seats', 'Full'];
   const pageSizeOptions = [5, 10, 15];
 
+
+  const hasEventPassed = (eventData) => {
+    if (!eventData.day || !eventData.startHour) {
+      return false;
+    }
+    
+    try {
+      const eventDateTime = dayjs(`${eventData.day} ${eventData.startHour}`);
+      const now = dayjs();
+      
+      return now.isAfter(eventDateTime);
+    } catch (error) {
+      console.error('Error parsing event date/time:', error);
+      return false; 
+    }
+  };
 
   useEffect(() => {
     const restoreStateFromLocalStorage = () => {
@@ -908,7 +924,7 @@ const Events = () => {
                   size="small"
                   value={filters.address}
                   onChange={(e) => setFilters({ ...filters, address: e.target.value })}
-                  inputProps={{ maxLength: 50 }}
+                  inputProps={{ maxLength: 100 }}
                   InputProps={{
                     startAdornment: <LocationSearchingIcon color="action" sx={{ mr: 1 }} />,
                   }}
@@ -1124,8 +1140,10 @@ const Events = () => {
           </Typography>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {events.map(event => (
-              <Card key={event.id} sx={{ width: '100%' }}>
+            {events.map(event => {
+                const eventHasPassed = hasEventPassed(event);
+
+              return ( <Card key={event.id} sx={{ width: '100%' }}>
                 <Box sx={{ display: 'flex', width: '100%' }}>
                   <CardContent sx={{
                     py: 2,
@@ -1162,6 +1180,14 @@ const Events = () => {
                             icon={<AttachMoneyIcon />}
                           />
                         )}
+                         {eventHasPassed && (
+                <Chip
+                  label="Event Ended"
+                  color="default"
+                  size="small"
+                  sx={{ ml: 1 }}
+                />
+              )}
                       </Box>
 
                       <Typography variant="body1" sx={{ mb: 0.5 }}>
@@ -1209,6 +1235,7 @@ const Events = () => {
                           <Button
                             color="secondary"
                             variant="outlined"
+                            disabled={eventHasPassed}
                             onClick={() => handleEditEvent(event.id)}
                             size="small"
                           >
@@ -1220,7 +1247,7 @@ const Events = () => {
                   </CardContent>
                 </Box>
               </Card>
-            ))}
+            )})}
           </Box>
 
           {/* Pagination */}

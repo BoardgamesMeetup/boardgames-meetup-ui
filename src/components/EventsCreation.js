@@ -36,6 +36,9 @@ const participantsOptions = [10, 20, 30, 40, 50];
 
 // Validation rules
 const validationRules = {
+  city: {
+    required: true
+},
   eventName: {
     required: true,
     maxLength: 50,
@@ -227,6 +230,23 @@ export default function EventsCreation() {
     const rule = validationRules[fieldName];
     if (!rule) return '';
 
+    if (fieldName === 'price') {
+      if (value && value.toString().trim() !== '') {
+          const num = parseFloat(value);
+          if (isNaN(num)) return 'Price must be a valid number';
+          if (rule.min !== undefined && num < rule.min) return `Price must be at least ${rule.min}`;
+          if (rule.max !== undefined && num > rule.max) return `Price cannot exceed ${rule.max}`;
+      }
+      return '';
+  }
+
+  if (fieldName === 'city') {
+      if (!value || value === '') {
+          return 'City is required';
+      }
+      return '';
+  }
+
     // Required validation strings
     if (rule.required && (!value || value.toString().trim() === '')) {
       return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
@@ -253,14 +273,6 @@ export default function EventsCreation() {
     // Pattern validation
     if (rule.pattern && !rule.pattern.test(value)) {
       return rule.message;
-    }
-
-    // Number validations
-    if (fieldName === 'price') {
-      const num = parseFloat(value);
-      if (isNaN(num)) return 'Price must be a valid number';
-      if (rule.min !== undefined && num < rule.min) return `Price must be at least ${rule.min}`;
-      if (rule.max !== undefined && num > rule.max) return `Price cannot exceed ${rule.max}`;
     }
 
     return '';
@@ -509,6 +521,12 @@ export default function EventsCreation() {
       address: '',
       addressInfo: '' 
     }));
+
+    const error = validateField('city', city);
+    setErrors(prev => ({
+        ...prev,
+        city: error
+    }));
     
     setMarkerPos(null);
     setAddressSelected(false);
@@ -530,10 +548,12 @@ export default function EventsCreation() {
 
     const session = await getSession();
     const token = session.getAccessToken().getJwtToken();
+    const idToken = session.getIdToken().payload;
+    const username = idToken['cognito:username'] || idToken.username || '';
 
     const payload = {
       title: form.eventName.trim(),
-      owner: '',
+      owner: username,
       day: form.day.format('YYYY-MM-DD'),
       startHour: form.startHour.format('HH:mm'),
       endHour: form.endHour.format('HH:mm'),
@@ -761,7 +781,6 @@ export default function EventsCreation() {
             <Grid item xs={12} md={6}>
               <Typography mb={1}>Ticket Price (RON)</Typography>
               <TextField
-                type="number"
                 value={form.price}
                 onChange={e => handleFieldChange('price', e.target.value)}
                 sx={inputStyle}
@@ -770,7 +789,6 @@ export default function EventsCreation() {
                 InputProps={{ 
                   inputProps: { min: 0, max: 10000, step: 0.01 }
                 }}
-                placeholder="0.00"
               />
             </Grid>
           </Grid>
@@ -887,8 +905,9 @@ export default function EventsCreation() {
                   }} 
                     sx={wideStyle} 
                     error={!!errors.address}
-                    helperText={errors.address || `Search for an address in ${form.city || 'Bucuresti, Cluj-Napoca, or Timisoara'}`}
+                    helperText={errors.address || `Search for an address in ${form.city || 'București, Cluj-Napoca, or Timișoara'}`}
                     placeholder="Type to search for address..."
+                    inputProps={{ maxLength: 100 }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">

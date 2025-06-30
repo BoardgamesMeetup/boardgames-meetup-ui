@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getSession } from '../cognito';
 import EventIcon from '@mui/icons-material/Event';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
@@ -225,7 +225,13 @@ function RecommendationSkeleton() {
 }
 
 function Home() {
+
+  const HOME_STATE_KEY = 'homePageState';
+  const HOME_STATE_TIMESTAMP_KEY = 'homePageStateTimestamp';
+
+  const location = useLocation();
   const navigate = useNavigate();
+  
   const [date, setDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [nextEvent, setNextEvent] = useState(null);
@@ -250,6 +256,46 @@ function Home() {
     const checkDate = new Date(dateStr);
     return checkDate < today;
   };
+
+  const saveHomePageState = () => {
+    const state = {
+      filterOption,
+      selectedDate: date.toISOString()
+    };
+    
+    localStorage.setItem(HOME_STATE_KEY, JSON.stringify(state));
+    localStorage.setItem(HOME_STATE_TIMESTAMP_KEY, Date.now().toString());
+  };
+
+  // Restore state from localStorage
+  const restoreHomePageState = () => {
+    try {
+      const savedState = localStorage.getItem(HOME_STATE_KEY);
+      const timestamp = localStorage.getItem(HOME_STATE_TIMESTAMP_KEY);
+      
+      // Check if state is recent (within 1 hour)
+      const isRecentState = timestamp && 
+        (Date.now() - parseInt(timestamp)) < 60 * 60 * 1000;
+      
+      if (savedState && isRecentState) {
+        const state = JSON.parse(savedState);
+        setFilterOption(state.filterOption);
+        setDate(new Date(state.selectedDate));
+        console.log('Restored home page state:', state);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error restoring home page state:', error);
+    }
+    return false;
+  };
+
+  // Clear saved state
+  const clearHomePageState = () => {
+    localStorage.removeItem(HOME_STATE_KEY);
+    localStorage.removeItem(HOME_STATE_TIMESTAMP_KEY);
+  };
+
 
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -281,6 +327,19 @@ function Home() {
     loadUserProfile();
   }, []);
 
+   // Restore state when component mounts
+   useEffect(() => {
+    // Check if we're returning from an event details page
+    const isReturningFromEventDetails = location.state?.fromEventDetails;
+    
+    if (isReturningFromEventDetails) {
+      const restored = restoreHomePageState();
+      if (!restored) {
+        console.log('No recent state to restore');
+      }
+    }
+  }, [location]);
+
   useEffect(() => {
     if (user.userId) {
       fetchHomeEvents();
@@ -293,6 +352,27 @@ function Home() {
       fetchEventDates();
     }
   }, [user.userId]);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (user.userId) {
+      saveHomePageState();
+    }
+  }, [filterOption, date, user.userId]);
+
+  useEffect(() => {
+    if (user.userId) {
+      fetchHomeEvents();
+    }
+  }, [filterOption, date, user.userId]);
+
+  useEffect(() => {
+    if (user.userId) {
+      fetchNextEvent();
+      fetchEventDates();
+    }
+  }, [user.userId]);
+
 
   const fetchHomeEvents = async () => {
     setLoading(true);
@@ -400,13 +480,12 @@ function Home() {
     try {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
-
       const response = await fetch('http://localhost:9013/events/next-event', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-
+  
       if (!response.ok) {
         if (response.status === 404) {
           setNextEvent(null);
@@ -414,9 +493,27 @@ function Home() {
         }
         throw new Error('Failed to fetch next event');
       }
-
-      const data = await response.json();
-      setNextEvent(data);
+  
+      const contentLength = response.headers.get('content-length');
+      if (contentLength === '0' || contentLength === null) {
+        setNextEvent(null);
+        return;
+      }
+  
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '' || responseText.trim() === 'null') {
+        setNextEvent(null);
+        return;
+      }
+  
+      try {
+        const data = JSON.parse(responseText);
+        setNextEvent(data);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        setNextEvent(null);
+      }
+  
     } catch (error) {
       console.error('Error fetching next event:', error);
       setNextEvent(null);
@@ -468,16 +565,17 @@ function Home() {
   };
 
   const handleViewDetails = (eventId) => {
-    navigate(`/events/${eventId}`);
-  };
+    saveHomePageState();
+    navigate(`/events/${eventId}`, {
+      state: { fromHomePage: true }
+    });  };
 
   const handleEditEvent = (eventId) => {
-    navigate(`/events-edit/${eventId}`);
-  };
-
-  const handleViewAllMyEvents = () => {
-    navigate('/my-events');
-  };
+    saveHomePageState();
+    navigate(`/events-edit/${eventId}`, {
+      state: { fromHomePage: true }
+    });
+    };
 
   const handleFilterChange = (event) => {
     setFilterOption(event.target.value);
@@ -577,17 +675,17 @@ function Home() {
                   label={<Typography fontSize="0.95rem">View All My Events</Typography>}
                   sx={{ margin: 0, height: '36px' }}
                 />
-                <FormControlLabel
+                {/* <FormControlLabel
                   value="suggestedEvents"
                   control={<Radio sx={{ p: 0.5 }} />}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      {/* <AutoAwesomeIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'primary.main' }} /> */}
+                      <AutoAwesomeIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'primary.main' }} />
                       <Typography fontSize="0.95rem">Event Recommendations</Typography>
                     </Box>
                   }
                   sx={{ margin: 0, height: '36px' }}
-                />
+                /> */}
               </RadioGroup>
             </FormControl>
           </Paper>
@@ -797,7 +895,8 @@ function Home() {
                       </>
                     );
                   })()
-                ) : (
+                )
+                 : (
                   events.map(event => (
                     <EventCard
                       key={event.id}
@@ -822,7 +921,7 @@ function Home() {
                 {filterOption === 'calendar' && `There are no events taking place on ${formatDisplayDate(date)}.`}
                 {filterOption === 'myNextEvents' && "You don't have any upcoming events."}
                 {filterOption === 'allMyEvents' && "You haven't participated in any events yet."}
-                {filterOption === 'suggestedEvents' && "No personalized recommendations available. Try searching for some events first to help us learn your preferences!"}
+                {/* {filterOption === 'suggestedEvents' && "No personalized recommendations available. Try searching for some events first to help us learn your preferences!"} */}
               </Alert>
             )}
           </Paper>

@@ -33,27 +33,6 @@ import RecommendIcon from '@mui/icons-material/Recommend';
 import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
 
 function Boardgames() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
-
-  const [boardgameId, setBoardgameId] = useState(searchParams.get("boardgameId") || "");
-  const [boardgameName, setBoardgameName] = useState(searchParams.get("boardgameName") || "");
-  const [minPlayers, setMinPlayers] = useState(searchParams.get("minPlayers") || "");
-  const [maxPlayers, setMaxPlayers] = useState(searchParams.get("maxPlayers") || "");
-  const [yearPublished, setYearPublished] = useState(searchParams.get("yearPublished") || "");
-  
-  const [minAge, setMinAge] = useState(searchParams.get("minAge") || "");
-  const [maxPlaytime, setMaxPlaytime] = useState(searchParams.get("maxPlaytime") || "");
-  const [minComplexity, setMinComplexity] = useState(searchParams.get("minComplexity") || "");
-  const [maxComplexity, setMaxComplexity] = useState(searchParams.get("maxComplexity") || "");
-
-  const [selectedMechanicCategories, setSelectedMechanicCategories] = useState(
-    searchParams.get("mechanicCategories") ? searchParams.get("mechanicCategories").split(",").filter(m => m !== "") : []
-  );
-  const [selectedDomains, setSelectedDomains] = useState(
-    searchParams.get("domains") ? searchParams.get("domains").split(",").filter(d => d !== "") : []
-  );
-
   const [expandedFilters, setExpandedFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -61,10 +40,8 @@ function Boardgames() {
   const [stateRestored, setStateRestored] = useState(false);
   const [showingSuggestions, setShowingSuggestions] = useState(false);
 
-  const defaultPageNumber = parseInt(searchParams.get("page") || "1", 10);
-  const [pageNumber, setPageNumber] = useState(defaultPageNumber);
-  const defaultPageSize = parseInt(searchParams.get("size") || "5", 10);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
 
   const [suggestionPageNumber, setSuggestionPageNumber] = useState(1);
@@ -74,6 +51,128 @@ function Boardgames() {
   const [boardgames, setBoardgames] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [error, setError] = useState("");
+
+  const defaultFilters = {
+    boardgameId: '',
+    boardgameName: '',
+    minPlayers: '',
+    maxPlayers: '',
+    minAge: '',
+    maxPlaytime: '',
+    minComplexity: '',
+    maxComplexity: '',
+    mechanics:[],
+    domains: [],
+    yearPublished: ''
+  };
+
+  const [filters, setFilters] = useState(defaultFilters);
+
+  // const mechanicCategoryOptions = Object.keys(MECHANIC_CATEGORIES);
+  // const domainOptions = DOMAIN_OPTIONS;
+
+  // const getIndividualMechanicsFromCategories = (categories) => {
+  //   const mechanics = [];
+  //   categories.forEach(category => {
+  //     if (MECHANIC_CATEGORIES[category]) {
+  //       mechanics.push(...MECHANIC_CATEGORIES[category]);
+  //     }
+  //   });
+  //   return mechanics;
+  // };
+
+
+  useEffect(() => {
+    const restoreStateFromLocalStorage = () => {
+      try {
+        const savedFilters = JSON.parse(localStorage.getItem('boardgameSearchFilters'));
+        if (savedFilters) {
+          // Merge saved filters with default filters to ensure all properties exist
+          setFilters(prevFilters => ({
+            ...prevFilters,
+            ...savedFilters
+          }));
+        }
+        
+        const savedPageNumber = localStorage.getItem('boardgamePageNumber');
+        const savedPageSize = localStorage.getItem('boardgamePageSize');
+        if (savedPageNumber) setPageNumber(parseInt(savedPageNumber, 10));
+        if (savedPageSize) setPageSize(parseInt(savedPageSize, 10));
+        
+        const savedResults = JSON.parse(localStorage.getItem('boardgameSearchResults'));
+        const savedTotalPages = localStorage.getItem('boardgameTotalPages');
+        if (savedResults && savedResults.length > 0) {
+          setBoardgames(savedResults);
+          setHasSearched(true);
+          if (savedTotalPages) {
+            setTotalPages(parseInt(savedTotalPages, 10));
+          }
+          setStateRestored(true);
+          console.log('Restored search state from localStorage');
+        }
+      } catch (error) {
+        console.error('Error restoring state from localStorage:', error);
+      }
+    };
+    
+    restoreStateFromLocalStorage();
+  }, []);
+  
+  useEffect(() => {
+    const performInitialSearch = async () => {
+      if (stateRestored) return;
+      
+      const hasFilters = Object.values(filters).some(value => 
+        Array.isArray(value) ? value.length > 0 : value !== ''
+      );
+      
+      if (hasFilters) {
+        handleFetchBoardgame(pageNumber);
+      }
+    };
+    
+    performInitialSearch();
+  }, [stateRestored]); 
+
+
+  useEffect(() => {
+    // Only save if filters have actual values (not just the initial empty state)
+    const hasFilters = Object.values(filters).some(value => 
+      Array.isArray(value) ? value.length > 0 : value !== ''
+    );
+    
+    if (hasFilters) {
+      localStorage.setItem('boardgameSearchFilters', JSON.stringify(filters));
+    }
+  }, [filters]);
+
+  const handleToggleFilters = () => {
+    setExpandedFilters(!expandedFilters);
+  };
+
+
+  const [stringErrors, setStringErrors] = useState({
+    boardgameName: '',
+  });
+
+  const [gameIDErrors, setGameIDErrors] = useState({
+    boardgameId: ''
+  });
+
+  const [numberErrors, setNumberErrors] = useState({
+    minAge: '',
+    maxPlaytime: '',
+    yearPublished: ''
+  });
+
+  const [playersError, setPlayersError] = useState({
+    minPlayers: '',
+    maxPlayers: ''
+  })
+  const [complexityError, setComplexityError] = useState({
+    minComplexity: '',
+    maxComplexity: ''
+  });
 
   const mechanicCategoryOptions = Object.keys(MECHANIC_CATEGORIES);
   const domainOptions = DOMAIN_OPTIONS;
@@ -87,91 +186,208 @@ function Boardgames() {
     });
     return mechanics;
   };
-
+  
+  useEffect(() => {
+    validatePlayers(filters.minPlayers, filters.maxPlayers);
+  }, [filters.minPlayers, filters.maxPlayers]);
 
   useEffect(() => {
-    const restoreStateFromLocalStorage = () => {
-      try {
-        const savedFilters = JSON.parse(localStorage.getItem('boardgameSearchFilters'));
-        if (savedFilters) {
-          if (savedFilters.boardgameId) setBoardgameId(savedFilters.boardgameId);
-          if (savedFilters.boardgameName) setBoardgameName(savedFilters.boardgameName);
-          if (savedFilters.minPlayers) setMinPlayers(savedFilters.minPlayers);
-          if (savedFilters.maxPlayers) setMaxPlayers(savedFilters.maxPlayers);
-          if (savedFilters.yearPublished) setYearPublished(savedFilters.yearPublished);
-          
-          if (savedFilters.minAge) setMinAge(savedFilters.minAge);
-          if (savedFilters.maxPlaytime) setMaxPlaytime(savedFilters.maxPlaytime);
-          if (savedFilters.minComplexity) setMinComplexity(savedFilters.minComplexity);
-          if (savedFilters.maxComplexity) setMaxComplexity(savedFilters.maxComplexity);
-          
-          if (savedFilters.mechanicCategories && Array.isArray(savedFilters.mechanicCategories)) {
-            setSelectedMechanicCategories(savedFilters.mechanicCategories);
-          }
-          if (savedFilters.domains && Array.isArray(savedFilters.domains)) {
-            setSelectedDomains(savedFilters.domains);
-          }
-        }
-        
-        const savedPageNumber = localStorage.getItem('boardgamePageNumber');
-        const savedPageSize = localStorage.getItem('boardgamePageSize');
-        
-        if (savedPageNumber) setPageNumber(parseInt(savedPageNumber, 10));
-        if (savedPageSize) setPageSize(parseInt(savedPageSize, 10));
-        
-        const savedResults = JSON.parse(localStorage.getItem('boardgameSearchResults'));
-        const savedTotalPages = localStorage.getItem('boardgameTotalPages');
-        
-        if (savedResults && savedResults.length > 0) {
-          setBoardgames(savedResults);
-          setHasSearched(true);
-          
-          if (savedTotalPages) {
-            setTotalPages(parseInt(savedTotalPages, 10));
-          }
-          
-          setStateRestored(true);
-          console.log('Restored search state from localStorage');
-        }
-      } catch (error) {
-        console.error('Error restoring state from localStorage:', error);
-      }
-    };
-    
-    restoreStateFromLocalStorage();
-  }, []);
+    validateName(filters.boardgameName);
+  }, [filters.boardgameName]);
 
   useEffect(() => {
-    const performInitialSearch = async () => {
-      if (stateRestored) return;
-      
-      if (Object.keys(searchParams).length > 0) {
-        handleFetchBoardgame(pageNumber);
-      }
+    validateID(filters.boardgameId);
+  }, [filters.boardgameId]);
+
+  useEffect(() => {
+    validateComplexity(filters.minComplexity, filters.maxComplexity);
+  }, [filters.minComplexity, filters.maxComplexity]);
+
+  useEffect(() => {
+    validateNumbers(filters.minAge, filters.maxPlaytime, filters.yearPublished);
+  }, [filters.minAge, filters.maxPlaytime, filters.yearPublished]);
+
+  const validateName = (boardgameName) => {
+    const newErrors = {
+      boardgameName: '',
     };
     
-    performInitialSearch();
-  }, [stateRestored]);
+      const value = boardgameName.toString().trim() || '';
+      if (value.length > 0 && value.length < 3) {
+        newErrors.boardgameName = `Name must be at least 3 characters`;
+      }
 
-  const handleToggleFilters = () => {
-    setExpandedFilters(!expandedFilters);
+    setStringErrors(newErrors);
   };
 
-  const buildSearchCriteria = () => {
-    const individualMechanics = getIndividualMechanicsFromCategories(selectedMechanicCategories);
-
-    return {
-      name: boardgameName || null,
-      minPlayers: minPlayers ? Number(minPlayers) : null,
-      maxPlayers: maxPlayers ? Number(maxPlayers) : null,
-      minAge: minAge ? Number(minAge) : null,
-      maxPlaytime: maxPlaytime ? Number(maxPlaytime) : null,
-      minComplexity: minComplexity ? parseFloat(minComplexity) : null,
-      maxComplexity: maxComplexity ? parseFloat(maxComplexity) : null,
-      mechanics: individualMechanics.length ? individualMechanics : null,
-      domains: selectedDomains.length ? selectedDomains : null,
-      yearPublished: yearPublished ? Number(yearPublished) : null,
+  const validateID = (boardgameId) => {
+    const newErrors = {
+      boardgameId: '',
     };
+    
+      const value = boardgameId.toString().trim() || '';
+      if (value.length > 0 && value.length < 3) {
+        newErrors.boardgameId = `BGG ID must be at least 3 to 20 digits`;
+      }
+
+      setGameIDErrors(newErrors);
+  };
+
+
+  const validatePlayers = (minPlayers, maxPlayers) => {
+    const newErrors = {
+      minPlayers: '',
+      maxPlayers: ''
+    };
+
+    if (minPlayers && (isNaN(minPlayers) || minPlayers < 0)) {
+      newErrors.minPlayers = 'Min number of players must be a positive number';
+    }
+
+    if (maxPlayers && (isNaN(maxPlayers) || maxPlayers < 0)) {
+      newErrors.maxPlayers = 'Max number of players must be a positive number';
+    }
+
+    if (minPlayers && maxPlayers && !isNaN(minPlayers) && !isNaN(maxPlayers) && minPlayers > maxPlayers) {
+      newErrors.maxPlayers = 'Max number of players must be greater than min number of players';
+    }
+
+    setPlayersError(newErrors);
+  };
+
+  const validateComplexity = (minComplexity, maxComplexity) => {
+    const newErrors = {
+      minComplexity: '',
+      maxComplexity: ''
+    };
+
+    if (minComplexity && (isNaN(minComplexity) || minComplexity < 0 || minComplexity > 5)) {
+      newErrors.minComplexity = 'Min complexity must be a positive number between 0 and 5';
+    }
+
+    if (maxComplexity && (isNaN(maxComplexity) || maxComplexity < 0 || maxComplexity > 5)) {
+      newErrors.maxComplexity = 'Max complexity must be a positive number between 0 and 5';
+    }
+
+    if (minComplexity && maxComplexity && !isNaN(minComplexity) && !isNaN(maxComplexity) && minComplexity > maxComplexity) {
+      newErrors.maxComplexity = 'Max complexity must be greater than min complexity';
+    }
+
+    setComplexityError(newErrors);
+  };
+
+
+  const validateNumbers = (minAge, maxPlaytime, yearPublished) => {
+    const newErrors = {
+      minAge: '',
+      maxPlaytime: '',
+      yearPublished: ''
+    };
+
+  
+    if (minAge && (isNaN(minAge) || minAge < 0)) {
+      newErrors.minAge = 'Minimum age must be a positive number';
+    }
+
+    if (maxPlaytime && (isNaN(maxPlaytime) || maxPlaytime < 0)) {
+      newErrors.maxPlaytime = 'Max playtime must be a positive number';
+    }
+
+    if (yearPublished && (isNaN(yearPublished) || yearPublished < 0)) {
+      newErrors.yearPublished = 'Year published must be a positive number';
+    }
+
+    setNumberErrors(newErrors);
+  };
+
+
+  const hasErrors = () => {
+    return playersError.minPlayers !== '' || playersError.maxPlayers !== '' ||
+      complexityError.minComplexity !== '' || complexityError.maxComplexity !== '' ||
+      stringErrors.boardgameName !== '' || numberErrors.yearPublished !== ''
+      || numberErrors.minAge !== '' || numberErrors.maxPlaytime !== ''
+      || gameIDErrors.boardgameId !== '';
+  };
+
+  // const buildSearchCriteria = () => {
+  //   const individualMechanics = getIndividualMechanicsFromCategories(selectedMechanicCategories);
+
+  //   return {
+  //     name: boardgameName || null,
+  //     minPlayers: minPlayers ? Number(minPlayers) : null,
+  //     maxPlayers: maxPlayers ? Number(maxPlayers) : null,
+  //     minAge: minAge ? Number(minAge) : null,
+  //     maxPlaytime: maxPlaytime ? Number(maxPlaytime) : null,
+  //     minComplexity: minComplexity ? parseFloat(minComplexity) : null,
+  //     maxComplexity: maxComplexity ? parseFloat(maxComplexity) : null,
+  //     mechanics: individualMechanics.length ? individualMechanics : null,
+  //     domains: selectedDomains.length ? selectedDomains : null,
+  //     yearPublished: yearPublished ? Number(yearPublished) : null,
+  //   };
+  // };
+
+  const buildSearchCriteria = (searchFilters) => {
+    const params = {};
+    
+    if (searchFilters.boardgameName && searchFilters.boardgameName.trim()) {
+      params.name = searchFilters.boardgameName.trim();
+    }
+
+    if (searchFilters.minPlayers && searchFilters.minPlayers.toString().trim()) {
+      const minPlayers = Number(searchFilters.minPlayers);
+      if (!isNaN(minPlayers) && minPlayers >= 0) {
+        params.minPlayers = minPlayers;
+      }
+    }
+    if (searchFilters.maxPlayers && searchFilters.maxPlayers.toString().trim()) {
+      const maxPlayers = Number(searchFilters.maxPlayers);
+      if (!isNaN(maxPlayers) && maxPlayers >= 0) {
+        params.maxPlayers = maxPlayers;
+      }
+    }
+    if (searchFilters.minAge && searchFilters.minAge.toString().trim()) {
+      const minAge = Number(searchFilters.minAge);
+      if (!isNaN(minAge) && minAge >= 0) {
+        params.minAge = minAge;
+      }
+    }
+    if (searchFilters.maxPlaytime && searchFilters.maxPlaytime.toString().trim()) {
+      const maxPlaytime = Number(searchFilters.maxPlaytime);
+      if (!isNaN(maxPlaytime) && maxPlaytime >= 0) {
+        params.maxPlaytime = maxPlaytime;
+      }
+    }
+    if (searchFilters.minComplexity && searchFilters.minComplexity.toString().trim()) {
+      const minComplexity = parseFloat(searchFilters.minComplexity);
+      if (!isNaN(minComplexity) && minComplexity >= 0) {
+        params.minComplexity = minComplexity;
+      }
+    }
+    if (searchFilters.maxComplexity && searchFilters.maxComplexity.toString().trim()) {
+      const maxComplexity = parseFloat(searchFilters.maxComplexity);
+      if (!isNaN(maxComplexity) && maxComplexity >= 0) {
+        params.maxComplexity = maxComplexity;
+      }
+    }
+    if (searchFilters.yearPublished && searchFilters.yearPublished.toString().trim()) {
+      const yearPublished = Number(searchFilters.yearPublished);
+      if (!isNaN(yearPublished) && yearPublished >= 0) {
+        params.yearPublished = yearPublished;
+      }
+    }
+    
+    if (searchFilters.mechanics && searchFilters.mechanics.length > 0) {
+      const individualMechanics = getIndividualMechanicsFromCategories(searchFilters.mechanics);
+      if (individualMechanics.length > 0) {
+        params.mechanics = individualMechanics;
+      }
+    }
+    
+    if (searchFilters.domains && searchFilters.domains.length > 0) {
+      params.domains = searchFilters.domains;
+    }
+    
+    return params;
   };
 
   const handleFetchSuggestions = async (overridePage = 1) => {
@@ -186,9 +402,9 @@ function Boardgames() {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
 
-      const searchCriteria = buildSearchCriteria();
+      const searchCriteria = buildSearchCriteria(filters);
       
-      console.log("Getting suggestions with criteria:", searchCriteria);
+      console.log("Getting suggestions for city :", searchCriteria);
       console.log("Suggestion Page:", overridePage, "Size:", pageSize);
 
       const response = await fetch(
@@ -232,69 +448,36 @@ function Boardgames() {
     setBoardgames([]);
     setSuggestions([]);
     setShowingSuggestions(false);
-
+    
     try {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
-
-      const newParams = {
-        boardgameId,
-        boardgameName,
-        minPlayers,
-        maxPlayers,
-        minAge,
-        maxPlaytime,
-        minComplexity,
-        maxComplexity,
-        mechanics: selectedMechanicCategories.join(","),
-        domains: selectedDomains.join(","),
-        yearPublished,
-        page: overridePage.toString(),
-        size: pageSize.toString(),
-      };
       
-      Object.keys(newParams).forEach((key) => {
-        if (!newParams[key]) delete newParams[key];
-      });
-      
-      setSearchParams(newParams);
-
-      const filtersToSave = {
-        boardgameId,
-        boardgameName,
-        minPlayers,
-        maxPlayers,
-        minAge,
-        maxPlaytime,
-        minComplexity,
-        maxComplexity,
-        mechanics: selectedMechanicCategories,
-        domains: selectedDomains,
-        yearPublished
-      };
-      
-      localStorage.setItem('boardgameSearchFilters', JSON.stringify(filtersToSave));
+      // Save current filters and pagination to localStorage
+      localStorage.setItem('boardgameSearchFilters', JSON.stringify(filters));
       localStorage.setItem('boardgamePageNumber', overridePage.toString());
       localStorage.setItem('boardgamePageSize', pageSize.toString());
-
-      if (boardgameId.trim()) {
+      
+      if (filters.boardgameId?.trim()) {
+        console.log("BGG ID: ", filters.boardgameId);
         const response = await fetch(
-          `http://localhost:9013/boardgames/external-object/${boardgameId}`,
+          `http://localhost:9013/boardgames/external-object/${filters.boardgameId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
+        
         if (!response.ok) {
-          throw new Error(`Failed to fetch boardgame with ID=${boardgameId}`);
+          throw new Error(`Failed to fetch boardgame with ID=${filters.boardgameId}`);
         }
+        
         const data = await response.json();
         setBoardgame(data);
       } else {
-        const filters = buildSearchCriteria();
-
-        console.log("Searching with filters:", filters);
+        const searchCriteria = buildSearchCriteria(filters);
+        console.log("Searching with filters:", searchCriteria);
         console.log("Page:", overridePage, "Size:", pageSize);
-
+        
         const url = `http://localhost:9013/boardgames/search?page=${overridePage}&size=${pageSize}`;
         const response = await fetch(url, {
           method: "POST",
@@ -302,16 +485,15 @@ function Boardgames() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(filters),
+          body: JSON.stringify(searchCriteria),
         });
-
+        
         if (!response.ok) {
           throw new Error("Failed to fetch boardgames");
         }
-
+        
         const data = await response.json();
         const resultContent = data.content || [];
-        
         setBoardgames(resultContent);
         setTotalPages(data.totalPages || 1);
         setHasSearched(true);
@@ -358,17 +540,27 @@ function Boardgames() {
   };
 
   const handleClear = () => {
-    setBoardgameId("");
-    setBoardgameName("");
-    setMinPlayers("");
-    setMaxPlayers("");
-    setMinAge("");
-    setMaxPlaytime("");
-    setMinComplexity("");
-    setMaxComplexity("");
-    setSelectedMechanicCategories([]);
-    setSelectedDomains([]);
-    setYearPublished("");
+    
+  setNumberErrors({
+    yearPublished: '',
+    minAge: '',
+    maxPlaytime: ''
+  });
+  setStringErrors({
+    boardgameName: ''
+  });
+  setGameIDErrors({
+     boardgameId: ''
+  });
+  setPlayersError({
+    minPlayers: '',
+    maxPlayers: ''
+  });
+  setComplexityError({
+    minComplexity: '',
+    maxComplexity:''
+  })
+    setFilters(defaultFilters);
     setPageNumber(1);
     setPageSize(5);
     setSuggestionPageNumber(1);
@@ -385,8 +577,6 @@ function Boardgames() {
     localStorage.removeItem('boardgamePageNumber');
     localStorage.removeItem('boardgamePageSize');
     localStorage.removeItem('boardgameTotalPages');
-
-    setSearchParams({});
   };
 
   const handlePageSizeChange = (e) => {
@@ -407,47 +597,28 @@ function Boardgames() {
     localStorage.removeItem('boardgameTotalPages');
     localStorage.setItem('boardgamePageSize', newSize.toString());
     localStorage.setItem('boardgamePageNumber', '1');
-    
-    const newParams = {
-      boardgameId,
-      boardgameName,
-      minPlayers,
-      maxPlayers,
-      minAge,
-      maxPlaytime,
-      minComplexity,
-      maxComplexity,
-      mechanics: selectedMechanicCategories.join(","),
-      domains: selectedDomains.join(","),
-      yearPublished,
-      page: "1",
-      size: newSize.toString(),
-    };
-    
-    Object.keys(newParams).forEach((key) => {
-      if (!newParams[key]) delete newParams[key];
-    });
-    
-    setSearchParams(newParams);
+    handleClear();
   };
 
   const getQueryParams = () => {
     const params = new URLSearchParams();
     params.append("page", pageNumber.toString());
     params.append("size", pageSize.toString());
-    if (boardgameName) params.append("boardgameName", boardgameName);
-    if (minPlayers) params.append("minPlayers", minPlayers);
-    if (maxPlayers) params.append("maxPlayers", maxPlayers);
-    if (minAge) params.append("minAge", minAge);
-    if (maxPlaytime) params.append("maxPlaytime", maxPlaytime);
-    if (minComplexity) params.append("minComplexity", minComplexity);
-    if (maxComplexity) params.append("maxComplexity", maxComplexity);
-    if (selectedMechanicCategories.length) params.append("mechanicCategories", selectedMechanicCategories.join(","));
-    if (selectedDomains.length) params.append("domains", selectedDomains.join(","));
-    if (yearPublished) params.append("yearPublished", yearPublished);
+    
+    if (filters.boardgameId) params.append("boardgameId", filters.boardgameId);
+    if (filters.boardgameName) params.append("boardgameName", filters.boardgameName);
+    if (filters.minPlayers) params.append("minPlayers", filters.minPlayers);
+    if (filters.maxPlayers) params.append("maxPlayers", filters.maxPlayers);
+    if (filters.minAge) params.append("minAge", filters.minAge);
+    if (filters.maxPlaytime) params.append("maxPlaytime", filters.maxPlaytime);
+    if (filters.minComplexity) params.append("minComplexity", filters.minComplexity);
+    if (filters.maxComplexity) params.append("maxComplexity", filters.maxComplexity);
+    if (filters.mechanics.length) params.append("mechanicCategories", filters.mechanics.join(","));
+    if (filters.domains.length) params.append("domains", filters.domains.join(","));
+    if (filters.yearPublished) params.append("yearPublished", filters.yearPublished);
+    
     return params.toString();
   };
-
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
@@ -463,8 +634,10 @@ function Boardgames() {
               label="Boardgame Name"
               fullWidth
               size="small"
-              value={boardgameName}
-              onChange={(e) => setBoardgameName(e.target.value)}
+              error={!!stringErrors.boardgameName}
+                helperText={stringErrors.boardgameName || ""}
+                value={filters.boardgameName}
+                onChange={(e) => setFilters({ ...filters, boardgameName: e.target.value })}
               InputProps={{
                 startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />
               }}
@@ -475,17 +648,21 @@ function Boardgames() {
               label="Boardgame ID"
               fullWidth
               size="small"
-              value={boardgameId}
-              onChange={(e) => setBoardgameId(e.target.value)}
-            />
+              error={!!gameIDErrors.boardgameId}
+              helperText={gameIDErrors.boardgameId || ""}
+              value={filters.boardgameId}
+              onChange={(e) => setFilters({ ...filters, boardgameId: e.target.value })}
+              />
           </Grid>
           <Grid item xs={12} md={4}>
             <TextField
               label="Min Players"
               fullWidth
               size="small"
-              value={minPlayers}
-              onChange={(e) => setMinPlayers(e.target.value)}
+              error={!!playersError.minPlayers}
+                helperText={playersError.minPlayers || ""}
+                value={filters.minPlayers}
+                onChange={(e) => setFilters({ ...filters, minPlayers: e.target.value })}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -493,8 +670,10 @@ function Boardgames() {
               label="Max Players"
               fullWidth
               size="small"
-              value={maxPlayers}
-              onChange={(e) => setMaxPlayers(e.target.value)}
+              error={!!playersError.maxPlayers}
+                helperText={playersError.maxPlayers || ""}
+                value={filters.maxPlayers}
+                onChange={(e) => setFilters({ ...filters, maxPlayers: e.target.value })}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -502,8 +681,10 @@ function Boardgames() {
               label="Year Published"
               fullWidth
               size="small"
-              value={yearPublished}
-              onChange={(e) => setYearPublished(e.target.value)}
+              error={!!numberErrors.yearPublished}
+                helperText={stringErrors.yearPublished || ""}
+                value={filters.yearPublished}
+                onChange={(e) => setFilters({ ...filters, yearPublished: e.target.value })}
             />
           </Grid>
         </Grid>
@@ -538,8 +719,10 @@ function Boardgames() {
                   label="Min Age"
                   fullWidth
                   size="small"
-                  value={minAge}
-                  onChange={(e) => setMinAge(e.target.value)}
+                  error={!!numberErrors.minAge}
+                helperText={numberErrors.minAge || ""}
+                value={filters.minAge}
+                onChange={(e) => setFilters({ ...filters, minAge: e.target.value })}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -547,8 +730,10 @@ function Boardgames() {
                   label="Max Playtime"
                   fullWidth
                   size="small"
-                  value={maxPlaytime}
-                  onChange={(e) => setMaxPlaytime(e.target.value)}
+                  error={!!numberErrors.maxPlaytime}
+                helperText={numberErrors.maxPlaytime || ""}
+                value={filters.maxPlaytime}
+                onChange={(e) => setFilters({ ...filters, maxPlaytime: e.target.value })}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -557,8 +742,10 @@ function Boardgames() {
                   fullWidth
                   size="small"
                   inputProps={{ step: "0.1" }}
-                  value={minComplexity}
-                  onChange={(e) => setMinComplexity(e.target.value)}
+                  error={!!complexityError.minComplexity}
+                helperText={complexityError.minComplexity || ""}
+                value={filters.minComplexity}
+                onChange={(e) => setFilters({ ...filters, minComplexity: e.target.value })}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -567,8 +754,10 @@ function Boardgames() {
                   fullWidth
                   size="small"
                   inputProps={{ step: "0.1" }}
-                  value={maxComplexity}
-                  onChange={(e) => setMaxComplexity(e.target.value)}
+                  error={!!complexityError.maxComplexity}
+                  helperText={complexityError.maxComplexity || ""}
+                  value={filters.maxComplexity}
+                  onChange={(e) => setFilters({...filters, maxComplexity: e.target.value})}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -578,15 +767,15 @@ function Boardgames() {
                     labelId="mechanics-label"
                     label="Mechanics"
                     multiple
-                    value={selectedMechanicCategories}
-                    onChange={(e) => setSelectedMechanicCategories(e.target.value)}
+                    value={filters.mechanics}
+                    onChange={(e) => setFilters({ ...filters, mechanics: e.target.value })}
                     input={<OutlinedInput label="Mechanics" />}
                     renderValue={(selected) => selected.join(", ")}
                     sx={{ minWidth: 205 }}
                   >
                     {mechanicCategoryOptions.map((category) => (
                       <MenuItem key={category} value={category}>
-                        <Checkbox checked={selectedMechanicCategories.indexOf(category) > -1} />
+                        <Checkbox checked={filters.mechanics.indexOf(category) > -1} />
                         <ListItemText primary={category} />
                       </MenuItem>
                     ))}
@@ -600,15 +789,15 @@ function Boardgames() {
                     labelId="domains-label"
                     label="Domains"
                     multiple
-                    value={selectedDomains}
-                    onChange={(e) => setSelectedDomains(e.target.value)}
+                    value={filters.domains}            
+                    onChange={(e) => setFilters({ ...filters, domains: e.target.value })}
                     input={<OutlinedInput label="Domains" />}
                     renderValue={(selected) => selected.join(", ")}
                     sx={{ minWidth: 205 }}
                   >
                     {domainOptions.map((domain) => (
                       <MenuItem key={domain} value={domain}>
-                        <Checkbox checked={selectedDomains.indexOf(domain) > -1} />
+                        <Checkbox checked={filters.domains.indexOf(domain) > -1} />
                         <ListItemText primary={domain} />
                       </MenuItem>
                     ))}
@@ -627,7 +816,7 @@ function Boardgames() {
               setPageNumber(1);
               handleFetchBoardgame(1);
             }} 
-            disabled={isLoading || isLoadingSuggestions}
+            disabled={hasErrors() || isLoading || isLoadingSuggestions}
             startIcon={<SearchIcon />}
           >
             {isLoading ? <CircularProgress size={24} color="inherit" /> : "Search"}

@@ -57,14 +57,30 @@ export function resendConfirmationCode(username) {
   const cognitoUser = new CognitoUser(userData);
   
   return new Promise((resolve, reject) => {
-    cognitoUser.resendConfirmationCode((err, result) => {
+    cognitoUser.getUserAttributes((err, attributes) => {
+      console.log("User attributes: ", attributes)
       if (err) {
-        console.error('Error resending confirmation code:', err);
-        reject(err);
+        if (err.code === 'UserNotFoundException') {
+          reject(new Error('User not found'));
+          return;
+        }
+        
+        resendCode(cognitoUser, resolve, reject);
       } else {
-        resolve(result);
+        reject(new Error('User account is already confirmed. Please try signing in.'));
       }
     });
+  });
+}
+
+function resendCode(cognitoUser, resolve, reject) {
+  cognitoUser.resendConfirmationCode((err, result) => {
+    if (err) {
+      console.error('Error resending confirmation code:', err);
+      reject(err);
+    } else {
+      resolve(result);
+    }
   });
 }
 

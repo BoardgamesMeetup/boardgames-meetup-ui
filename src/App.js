@@ -85,10 +85,8 @@ function App() {
         <Route path="/login" element={<Login setUser={setUser} />} />
         <Route path="/confirm" element={<ConfirmationPage />} />
         <Route path="/resend-confirmation" element={< ResendConfirmation />} /> 
-        <Route element={<ProtectedRoute/>}>
         <Route path="/forgot-password" element={<ForgotPassword />} />
-
-
+        <Route element={<ProtectedRoute/>}>
 
             <Route exact path="/home" element={<Home />} />
             <Route path="/user-profile" element={<UserProfile />} />

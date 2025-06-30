@@ -43,6 +43,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import { MECHANIC_CATEGORIES, DOMAIN_OPTIONS } from '../utils/boardgameConstants';
 import { useLoadScript } from '@react-google-maps/api';
+import ClockTimePicker from './ClockTimePicker';
 
 const cityOptions = ['Cluj-Napoca', 'București', 'Timișoara'];
 const participantsOptions = [10, 20, 30, 40, 50];
@@ -64,6 +65,9 @@ const defaultFilters = {
 
 // Validation rules
 const validationRules = {
+  city: {
+    required: true
+},
   eventName: {
     required: true,
     maxLength: 50,
@@ -340,6 +344,23 @@ export default function EventUpdate() {
     const rule = validationRules[fieldName];
     if (!rule) return '';
 
+    if (fieldName === 'price') {
+      if (value && value.toString().trim() !== '') {
+          const num = parseFloat(value);
+          if (isNaN(num)) return 'Price must be a valid number';
+          if (rule.min !== undefined && num < rule.min) return `Price must be at least ${rule.min}`;
+          if (rule.max !== undefined && num > rule.max) return `Price cannot exceed ${rule.max}`;
+      }
+      return '';
+  }
+
+  if (fieldName === 'city') {
+      if (!value || value === '') {
+          return 'City is required';
+      }
+      return '';
+  }
+
     // Required validation strings
     if (rule.required && (!value || value.toString().trim() === '')) {
       return `${fieldName.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
@@ -369,13 +390,6 @@ export default function EventUpdate() {
       return rule.message;
     }
 
-    // Number validations
-    if (fieldName === 'price') {
-      const num = parseFloat(value);
-      if (isNaN(num)) return 'Price must be a valid number';
-      if (rule.min !== undefined && num < rule.min) return `Price must be at least ${rule.min}`;
-      if (rule.max !== undefined && num > rule.max) return `Price cannot exceed ${rule.max}`;
-    }
 
     return '';
   };
@@ -391,7 +405,7 @@ export default function EventUpdate() {
       boardgameName: ''
     };
     
-    const fieldsToValidate = ['eventName', 'venueName', 'address', 'addressInfo', 'description'];
+    const fieldsToValidate = ['eventName', 'venueName', 'address', 'addressInfo', 'description', 'boardgameName'];
     
     fieldsToValidate.forEach(fieldName => {
       const value = fields[fieldName] ? fields[fieldName].toString().trim() : '';
@@ -538,16 +552,18 @@ export default function EventUpdate() {
   };
 
   const hasErrors = () => {
-    return playersError.minPlayers !== '' || playersError.maxPlayers !== '' ||
-      complexityError.minComplexity !== '' || complexityError.maxComplexity !== '' ||
-      stringErrors.boardgameName !== '' || numberErrors.yearPublished !== '' ||
-      numberErrors.minAge !== '' || numberErrors.maxPlaytime !== '' ||
-      stringErrors.eventName !== '' || stringErrors.venueName !== '' ||
+    return stringErrors.eventName !== '' || stringErrors.venueName !== '' ||
       stringErrors.address !== '' || stringErrors.addressInfo !== '' ||
       stringErrors.description !== '' || numberErrors.price !== '' ||
       dateErrors.day !== '' || timeErrors.startHour !== '' || timeErrors.endHour !== '';
   };
 
+  const hasBoardgameError = () => {
+    return playersError.minPlayers !== '' || playersError.maxPlayers !== '' ||
+    complexityError.minComplexity !== '' || complexityError.maxComplexity !== '' ||
+    stringErrors.boardgameName !== '' || numberErrors.yearPublished !== '' ||
+    numberErrors.minAge !== '' || numberErrors.maxPlaytime !== '';
+  };
 
    // UseEffect hooks for validation
    useEffect(() => {
@@ -732,7 +748,7 @@ export default function EventUpdate() {
     }
     
     if (!form.participants) newErr.participants = 'Number of participants is required';
-    if (!form.city) newErr.city = 'City is required';
+    if (!form.city || form.city === '') newErr.city = 'City is required';
     
     if (!form.venueName && !form.address) {
       newErr.address = 'Either venue name or address is required';
@@ -868,7 +884,13 @@ export default function EventUpdate() {
       address: '',
       addressInfo: '' 
     }));
-    
+
+    const error = validateField('city', city);
+    setErrors(prev => ({
+        ...prev,
+        city: error
+    }));
+
     setMarkerPos(null);
     setAddressSelected(false);
 
@@ -976,12 +998,15 @@ export default function EventUpdate() {
     try {
       const session = await getSession();
       const token = session.getAccessToken().getJwtToken();
+      const idToken = session.getIdToken().payload;
+      const username = idToken['cognito:username'] || idToken.username || '';
 
       const boardgameIds = selectedBoardgames.map(bg => bg.gameId);
       
       const completePayload = {
         id: eventId,
         title: form.eventName,
+        owner: username,
         day: form.day.format('YYYY-MM-DD'),
         startHour: form.startHour.format('HH:mm'),
         endHour: form.endHour.format('HH:mm'),
@@ -1179,7 +1204,7 @@ export default function EventUpdate() {
                         slotProps={{ 
                           textField: { 
                             sx: inputStyle, 
-                            error: !!errors.day, 
+                            error: !!dateErrors.day, 
                             helperText: dateErrors.day || "Must be between tomorrow and Dec 31, 2025"
                           } 
                         }}
@@ -1187,46 +1212,36 @@ export default function EventUpdate() {
                     </LocalizationProvider>
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <Typography mb={1}>Start Hour</Typography>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <TimePicker 
-                        value={form.startHour} 
-                        onChange={v => {
-                          setForm(f => {
-                            const newForm = { ...f, startHour: v };
-                            if (f.endHour && v && f.endHour.isBefore(v)) {
-                              newForm.endHour = null;
-                            }
-                            return newForm;
-                          });
-                        }}
-                        slotProps={{ 
-                          textField: { 
-                            sx: inputStyle, 
-                            error: !!errors.startHour, 
-                            helperText: errors.startHour 
-                          } 
-                        }} 
-                      />
-                    </LocalizationProvider>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography mb={1}>End Hour</Typography>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <TimePicker 
-                        value={form.endHour}
-                        onChange={v => setForm(f => ({ ...f, endHour: v }))}
-                        slotProps={{ 
-                          textField: { 
-                            sx: inputStyle, 
-                            error: !!timeErrors.endHour, 
-                            helperText: timeErrors.endHour || (form.startHour ? "Must be after start time" : "Select start time first")                          } 
-                        }}
-                        disabled={!form.startHour}
-                        minTime={form.startHour}
-                      />
-                    </LocalizationProvider>
-                  </Grid>
+              <ClockTimePicker
+                label="Start Time *"
+                value={form.startHour}
+                onChange={v => {
+                  setForm(f => {
+                    const newForm = { ...f, startHour: v };
+                    // Clear end time if it becomes invalid
+                    if (f.endHour && v && (f.endHour.isBefore(v) || f.endHour.isSame(v))) {
+                      newForm.endHour = null;
+                    }
+                    return newForm;
+                  });
+                }}
+                error={errors.startHour}
+                helperText="Click clock icon for full time picker"
+                inputStyle={inputStyle}
+              />
+              </Grid>
+            <Grid item xs={12} md={3}>
+              <ClockTimePicker
+                label="End Time *"
+                value={form.endHour}
+                onChange={v => setForm(f => ({ ...f, endHour: v }))}
+                error={errors.endHour}
+                disabled={!form.startHour}
+                minTime={form.startHour}
+                helperText={form.startHour ? "Must be after start time" : "Select start time first"}
+                inputStyle={inputStyle}
+              />
+            </Grid>
 
                   <Grid item xs={12} md={6}>
                     <Typography mb={1}>Participants</Typography>
@@ -1247,7 +1262,6 @@ export default function EventUpdate() {
                   <Grid item xs={12} md={6}>
                     <Typography mb={1}>Ticket Price (optional)</Typography>
                     <TextField
-                      type="number"
                       value={form.price}
                       onChange={e => handleFieldChange('price', e.target.value)}
                       sx={inputStyle}
@@ -1301,9 +1315,9 @@ export default function EventUpdate() {
                 
                 <Grid container spacing={4}>
                   <Grid item xs={12} md={6}>
-                    <Typography mb={1}>City</Typography>
+                    <Typography mb={1}>City *</Typography>
                     <FormControl required sx={inputStyle} error={!!errors.city}>
-                      <InputLabel>City *</InputLabel>
+                      <InputLabel>City</InputLabel>
                       <Select 
                         value={form.city} 
                         onChange={handleCityChange} 
@@ -1313,7 +1327,7 @@ export default function EventUpdate() {
                           <MenuItem key={c} value={c}>{c}</MenuItem>
                         ))}
                       </Select>
-                      {errors.city && <FormHelperText>{errors.city}</FormHelperText>}
+                      {errors.city && <FormHelperText>{errors.city || "Select city"}</FormHelperText>}
                     </FormControl>
 
                     <Typography mb={1} mt={2}>Venue Name *</Typography>
@@ -1371,8 +1385,9 @@ export default function EventUpdate() {
                           }}
                           sx={wideStyle} 
                           error={!!stringErrors.address}
-                          helperText={stringErrors.address || `Search for an address in ${form.city || 'Bucuresti, Cluj-Napoca, or Timisoara'}`}
+                          helperText={stringErrors.address || `Search for an address in ${form.city || 'București, Cluj-Napoca, or Timișoara'}`}
                           placeholder="Type to search for address..."
+                          inputProps={{ maxLength: 100 }}
                         />
                       </Autocomplete>
                       {loadingAddress && (
@@ -1703,7 +1718,7 @@ export default function EventUpdate() {
                   <Button 
                     variant="contained" 
                     onClick={() => handleSearch(1)} 
-                    disabled={hasErrors() || loadingSearch}
+                    disabled={hasBoardgameError() || loadingSearch}
                     startIcon={<SearchIcon />}
                   >
                     {loadingSearch ? <CircularProgress size={24} color="inherit" /> : "Search"}
@@ -1858,6 +1873,12 @@ export default function EventUpdate() {
           >
             Cancel
           </Button>
+          {/* <p>
+          {stringErrors.eventName}, {stringErrors.venueName}
+      {stringErrors.address}, {stringErrors.addressInfo}
+      {stringErrors.description}, {numberErrors.price}
+      {dateErrors.day}, {timeErrors.startHour}, {timeErrors.endHour}--
+          </p> */}
           <Button 
             variant="contained" 
             onClick={handleUpdate}
